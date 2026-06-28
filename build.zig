@@ -131,6 +131,44 @@ pub fn build(b: *Build) void {
     b.installArtifact(dpsv);
     b.installArtifact(gamesv);
 
+    const edit_save = b.addExecutable(.{
+        .name = "edit-save",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/edit-save.zig"),
+            .imports = &.{
+                .{ .name = "rmpb", .module = rmpb },
+            },
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    // The disc spec and the set list, imported at compile time.
+    edit_save.root_module.addAnonymousImport("discs", .{
+        .root_source_file = b.path("tools/discs.zon"),
+    });
+    edit_save.root_module.addAnonymousImport("EquipmentSuitTemplateTb", .{
+        .root_source_file = b.path("assets/filecfg/EquipmentSuitTemplateTb.zon"),
+    });
+
+    // Reuse the same generated schema the game server decodes saves with.
+    edit_save.step.dependOn(&compile_stable_definitions.step);
+
+    const run_edit_save = b.addRunArtifact(edit_save);
+    if (b.args) |args| run_edit_save.addArgs(args);
+
+    b.step(
+        "edit-save",
+        "rewrite a PlayerSave .bin's drive discs from tools/discs.zon (usage: zig build edit-save -- <path>)",
+    ).dependOn(&run_edit_save.step);
+
+    // Compile the tool without running it: all of tools/discs.zon's rules are
+    // checked at comptime, so this validates the spec without touching any save.
+    b.step(
+        "check-discs",
+        "validate tools/discs.zon (compiles edit-save without editing any save)",
+    ).dependOn(&edit_save.step);
+
     const serve_all_exe = b.addExecutable(.{
         .name = "serve-all",
         .root_module = b.createModule(.{

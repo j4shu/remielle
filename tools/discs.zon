@@ -1,0 +1,34 @@
+// Drive-disc spec consumed at compile time by tools/edit-save.zig.
+//
+// Each entry under `.slots` is one slot template; edit-save generates that disc
+// for EVERY equipment set (all 30 suits).
+//
+// Per entry:
+//   .slot  1..6
+//   .main  optional. Slots 1-3 default to flat HP/ATK/DEF; slots 4-6 require it.
+//   .subs  exactly 4, each `.{ <StatEnum>, <upgrades> }`, upgrades summing to 5.
+//
+// Stat enum (from edit-save.zig):
+//   HpFlat AtkFlat DefFlat  HpPct AtkPct DefPct
+//   CritRate CritDmg AnomProf  PenFlat
+//   main-only (never a sub): PenRatio PhysDmg FireDmg IceDmg ElecDmg EtherDmg
+//                            WindDmg EnergyRegen AnomMastery Impact
+//
+// Rules (enforced as compile errors): a sub may not equal the main; no duplicate
+// subs; a main must be legal for that slot; main-only stats can't be subs.
+.{
+    .slots = .{
+        // Slot 1 — HP flat main: CritDMG +3, CritRate +2, ATK%, flat PEN
+        .{ .slot = 1, .subs = .{ .{ .CritDmg, 3 }, .{ .CritRate, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+        // Slot 2 — ATK flat main: ATK% maxed (+5), CritDMG, CritRate, flat PEN
+        .{ .slot = 2, .subs = .{ .{ .AtkPct, 5 }, .{ .CritDmg, 0 }, .{ .CritRate, 0 }, .{ .PenFlat, 0 } } },
+        // Slot 3 — DEF flat main
+        .{ .slot = 3, .subs = .{ .{ .CritDmg, 3 }, .{ .CritRate, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+        // Slot 4 — CRIT DMG main
+        .{ .slot = 4, .main = .CritDmg, .subs = .{ .{ .AtkPct, 2 }, .{ .CritRate, 2 }, .{ .PenFlat, 1 }, .{ .AnomProf, 0 } } },
+        // Slot 5 — Fire DMG main
+        .{ .slot = 5, .main = .FireDmg, .subs = .{ .{ .CritRate, 2 }, .{ .CritDmg, 2 }, .{ .AtkPct, 1 }, .{ .PenFlat, 0 } } },
+        // Slot 6 — ATK% main
+        .{ .slot = 6, .main = .AtkPct, .subs = .{ .{ .CritRate, 2 }, .{ .CritDmg, 2 }, .{ .HpPct, 1 }, .{ .PenFlat, 0 } } },
+    },
+}
