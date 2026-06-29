@@ -156,19 +156,9 @@ pub fn main(init: Init) !void {
     try w.print("new size:  {d} bytes\n\n", .{out_bytes.len});
     inline for (character_templates, 0..) |c, ci| {
         if (equipped[ci])
-            try w.print(".{s} (avatar {d}) - equipped W-Engine + 6 discs:\n", .{ c.avatar_name, c.avatar_id })
+            try w.print("  .{s} (avatar {d})\n", .{ c.avatar_name, c.avatar_id })
         else
-            try w.print(".{s} (avatar {d}) - NOT owned in save; items added to inventory but not equipped:\n", .{ c.avatar_name, c.avatar_id });
-        try w.print("  W-Engine {s}  lv60 *5 R5\n", .{c.weapon_name});
-        inline for (c.discs) |tmpl| {
-            try w.print("  slot {d}  set {s}  main {s}", .{ tmpl.slot, tmpl.set_name, propName(tmpl.props[0].key) });
-            inline for (1..5) |k| {
-                const p = tmpl.props[k];
-                try w.print("  +{s}(+{d})", .{ propName(p.key), p.add - 1 });
-            }
-            try w.writeByte('\n');
-        }
-        try w.writeByte('\n');
+            try w.print("  .{s} (avatar {d})  - NOT owned (added to inventory, not equipped)\n", .{ c.avatar_name, c.avatar_id });
     }
     try w.flush();
 }
@@ -181,13 +171,11 @@ const weapon_table = @import("WeaponTemplateTb");
 
 // Friendly name tables shared with tools/inspect-save.zig so the writer and the reader
 // can never disagree about a name: Set (set name → suit id), Avatar (character name →
-// avatar id), Weapon (W-Engine name → weapon id), and propName (property key →
-// readable name).
+// avatar id), and Weapon (W-Engine name → weapon id).
 const zzz = @import("zzz_names.zig");
 const Set = zzz.Set;
 const Avatar = zzz.Avatar;
 const Weapon = zzz.Weapon;
-const propName = zzz.propName;
 
 // Gear-uid encoding bases (an avatar reference stores `raw uid + base`); see the docs in
 // tools/zzz_names.zig. Shared so the writer and inspect-save can never disagree.
