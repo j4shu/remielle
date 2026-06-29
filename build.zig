@@ -143,12 +143,15 @@ pub fn build(b: *Build) void {
         }),
     });
 
-    // The disc spec and the set list, imported at compile time.
-    edit_save.root_module.addAnonymousImport("discs", .{
-        .root_source_file = b.path("tools/discs.zon"),
+    // The build spec and the set/weapon template tables, imported at compile time.
+    edit_save.root_module.addAnonymousImport("builds", .{
+        .root_source_file = b.path("tools/builds.zon"),
     });
     edit_save.root_module.addAnonymousImport("EquipmentSuitTemplateTb", .{
         .root_source_file = b.path("assets/filecfg/EquipmentSuitTemplateTb.zon"),
+    });
+    edit_save.root_module.addAnonymousImport("WeaponTemplateTb", .{
+        .root_source_file = b.path("assets/filecfg/WeaponTemplateTb.zon"),
     });
 
     // Reuse the same generated schema the game server decodes saves with.
@@ -159,15 +162,30 @@ pub fn build(b: *Build) void {
 
     b.step(
         "edit-save",
-        "rewrite a PlayerSave .bin's drive discs from tools/discs.zon (usage: zig build edit-save -- <path>)",
+        "rewrite a PlayerSave .bin's W-Engines + drive discs from tools/builds.zon and auto-equip them (usage: zig build edit-save -- <path>)",
     ).dependOn(&run_edit_save.step);
 
-    // Compile the tool without running it: all of tools/discs.zon's rules are
-    // checked at comptime, so this validates the spec without touching any save.
+    // Read-only companion: dump the W-Engines + discs + equipped slots in a save (never writes).
+    const inspect_save = b.addExecutable(.{
+        .name = "inspect-save",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/inspect-save.zig"),
+            .imports = &.{
+                .{ .name = "rmpb", .module = rmpb },
+            },
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    inspect_save.step.dependOn(&compile_stable_definitions.step);
+
+    const run_inspect_save = b.addRunArtifact(inspect_save);
+    if (b.args) |args| run_inspect_save.addArgs(args);
+
     b.step(
-        "check-discs",
-        "validate tools/discs.zon (compiles edit-save without editing any save)",
-    ).dependOn(&edit_save.step);
+        "inspect-save",
+        "dump a PlayerSave .bin's W-Engines + drive discs + equipped slots, read-only (usage: zig build inspect-save -- <path>)",
+    ).dependOn(&run_inspect_save.step);
 
     const serve_all_exe = b.addExecutable(.{
         .name = "serve-all",
