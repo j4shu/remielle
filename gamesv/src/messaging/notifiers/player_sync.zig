@@ -7,6 +7,7 @@ pub fn playerSync(
         logic.Changes.ControlGuiseAvatar,
         logic.Changes.Avatar,
         logic.Changes.PlayerAccessory,
+        logic.Changes.Lineup,
     }),
     notify: Notify(pb.PlayerSyncScNotify),
 ) !void {
@@ -28,6 +29,7 @@ pub fn playerSync(
             changes.control_guise_avatar,
             changes.player_accessory,
         ),
+        .lineup = try buildLineupSync(notify.allocator, changes.lineups),
     };
 
     sync.item = try buildItemSync(notify.allocator, changes.avatars);
@@ -105,6 +107,10 @@ fn buildItemSync(allocator: Allocator, avatar_changes: []const logic.Changes.Ava
     }
 
     return sync;
+}
+
+fn buildLineupSync(allocator: Allocator, lineups: []const logic.Changes.Lineup) !?pb.LineupSync {
+    return if (lineups.len == 0) null else try packers.packLineupSync(allocator, lineups);
 }
 
 const Notify = notifiers.Notify;

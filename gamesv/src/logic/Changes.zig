@@ -6,6 +6,7 @@ npc_interaction: ?NpcInteraction,
 control_avatar: ?ControlAvatar,
 control_guise_avatar: ?ControlGuiseAvatar,
 avatars: []const Avatar,
+lineups: []const Lineup,
 
 pub const init: Changes = .{
     .game_mode = null,
@@ -16,6 +17,7 @@ pub const init: Changes = .{
     .control_avatar = null,
     .control_guise_avatar = null,
     .avatars = &.{},
+    .lineups = &.{},
 };
 
 /// Game mode switch.
@@ -200,6 +202,11 @@ pub const Avatar = struct {
     weapon_uid: Properties.Avatar.OptionalUID,
     equipment_uids: [Properties.Avatar.equipment_slots]Properties.Avatar.OptionalUID,
     awake_material_count: Properties.Avatar.Awakening.Material,
+};
+
+pub const Lineup = struct {
+    slot: Properties.Lineup.Slot,
+    meta: Properties.Lineup.Meta,
 };
 
 pub const subset_marker_name = "logic_changes_subset_marker";

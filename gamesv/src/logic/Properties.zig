@@ -4,6 +4,7 @@ pub const Buddy = @import("Properties/Buddy.zig");
 pub const Weapon = @import("Properties/Weapon.zig");
 pub const Equipment = @import("Properties/Equipment.zig");
 pub const Hall = @import("Properties/Hall.zig");
+pub const Lineup = @import("Properties/Lineup.zig");
 
 basic_info: BasicInfo,
 player_accessory: PlayerAccessory,
@@ -13,6 +14,7 @@ weapon: Weapon,
 equip: Equipment,
 hall: Hall,
 main_city_time: MainCityTime,
+lineup: Lineup,
 
 pub const List = rmmem.RemielleArrayList(
     rmmem.suggestBucketSize(64, Properties),
@@ -31,6 +33,7 @@ pub fn setDefaultsAt(list: *List, time: Io.Timestamp, at: Player) void {
     list.getPtr(.equip, index).* = .init;
     list.getPtr(.hall, index).* = .init;
     list.getPtr(.main_city_time, index).* = .init;
+    list.getPtr(.lineup, index).* = .init;
 
     unlockAllAvatars(list, at);
     applyAvatarOverrides(list, at);
@@ -682,6 +685,24 @@ pub fn toPlayerSave(props: *Properties.List, arena: Allocator, player: Player) A
         .day_of_week = @intFromEnum(main_city_time.day_of_week),
     };
 
+    const lineup = props.getPtr(.lineup, index);
+    var lineup_save: pb.LineupSave = .{
+        .presets = try .initCapacity(arena, Lineup.slots),
+    };
+
+    for (&lineup.meta) |*meta| {
+        const preset = lineup_save.presets.addOneAssumeCapacity();
+
+        preset.* = .{
+            .name = meta.name.view(),
+            .avatar_ids = try .initCapacity(arena, Properties.Lineup.avatar_slots),
+            .buddy_id = @intFromEnum(meta.buddy_id),
+        };
+
+        for (meta.avatar_ids) |avatar_id|
+            preset.avatar_ids.appendAssumeCapacity(@intFromEnum(avatar_id));
+    }
+
     return .{
         .basic = basic_save,
         .player_accessory = player_accessory_save,
@@ -691,6 +712,7 @@ pub fn toPlayerSave(props: *Properties.List, arena: Allocator, player: Player) A
         .equip = equip_save,
         .hall = hall_save,
         .main_city_time = main_city_time_save,
+        .lineup = lineup_save,
     };
 }
 
@@ -858,6 +880,22 @@ pub fn fromPlayerSave(
         .time_in_minutes = @truncate(main_city_time_save.time_in_minutes),
         .day_of_week = @enumFromInt(main_city_time_save.day_of_week),
     } else .init;
+
+    if (save.lineup) |lineup_save| {
+        const lineup = props.getPtr(.lineup, index);
+
+        for (lineup_save.presets.items, 0..) |preset, i| {
+            lineup.meta[i].name = try .fromSlice(preset.name);
+            lineup.meta[i].buddy_id = @enumFromInt(preset.buddy_id);
+
+            @memcpy(
+                @as([*]u32, @ptrCast(&lineup.meta[i].avatar_ids)),
+                preset.avatar_ids.items,
+            );
+        }
+    } else {
+        props.getPtr(.lineup, index).* = .init;
+    }
 }
 
 const Io = std.Io;
