@@ -16,7 +16,7 @@ pub fn getMiscData(
     properties: Properties.Immutable(.{
         Properties.BasicInfo,
         Properties.PlayerAccessory,
-        Properties.Lineup,
+        Properties.QuickTeam,
     }),
     response: Response(pb.GetMiscDataScRsp),
 ) !void {
@@ -70,7 +70,7 @@ pub fn getMiscData(
             .control_guise_avatar_skin_id = properties.basic_info.control_guise_avatar_skin.toInt(),
             .player_accessory_list = player_accessory_list,
         },
-        .lineup = try packers.packLineupData(response.allocator, &properties.lineup.meta),
+        .quick_team = try packers.packQuickTeamData(response.allocator, &properties.quick_team.meta),
     } });
 }
 

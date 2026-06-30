@@ -493,7 +493,7 @@ pub const KFANPKMCPBG = struct {
     id: u32 = 0,
     count: u32 = 0,
     LFCEBIEIJCG: u32 = 0,
-    lineup_id: u32 = 0,
+    slot: u32 = 0,
     JJMILNHCLON: u32 = 0,
 };
 
@@ -578,7 +578,7 @@ pub const CIEPNABJNJF = struct {
 pub const OAIKCJBAPFI = struct {
     pub const init: @This() = .{};
     pub const pb_desc_name = "OAIKCJBAPFI";
-    lineup_id: u32 = 0,
+    slot: u32 = 0,
 };
 
 pub const PFDMDKJDKBN = struct {
@@ -2754,16 +2754,16 @@ pub const BCBNLFKHNIP = enum(i32) {
     BCBNLFKHNIP_ODAKKCHKPDG = 35,
 };
 
-pub const SetLineupNameCsReq = struct {
+pub const QuickTeamModNameCsReq = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "SetLineupNameCsReq";
+    pub const pb_desc_name = "QuickTeamModNameCsReq";
     name: []const u8 = "",
-    lineup_id: u32 = 0,
+    slot: u32 = 0,
 };
 
-pub const SetLineupNameScRsp = struct {
+pub const QuickTeamModNameScRsp = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "SetLineupNameScRsp";
+    pub const pb_desc_name = "QuickTeamModNameScRsp";
     retcode: i32 = 0,
 };
 
@@ -4943,9 +4943,9 @@ pub const LGEPNHEMCCB = struct {
     LFCEBIEIJCG: u32 = 0,
 };
 
-pub const LineupBuddy = struct {
+pub const QuickTeamBuddy = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "LineupBuddy";
+    pub const pb_desc_name = "QuickTeamBuddy";
     buddy_id: u32 = 0,
 };
 
@@ -7888,7 +7888,7 @@ pub const JDCLNFADMPC = struct {
 pub const IDDKJOJHLLG = struct {
     pub const init: @This() = .{};
     pub const pb_desc_name = "IDDKJOJHLLG";
-    lineup_id: u32 = 0,
+    slot: u32 = 0,
     LNDDINBKGEA: []const u8 = "",
 };
 
@@ -7968,7 +7968,7 @@ pub const MiscData = struct {
     LENINJELJGJ: ?GDFNENMNFEF = null,
     MEPLHBOLBNB: ?GJALKHFLJLD = null,
     teleport: ?TeleportUnlockInfo = null,
-    lineup: ?LineupData = null,
+    quick_team: ?QuickTeamData = null,
     post_girl: ?PostGirlInfo = null,
     JJMPMHECKIE: ?FDGGBHCKMBM = null,
     GLIALPHPGOE: ?JKMOAPHHCJF = null,
@@ -8112,15 +8112,15 @@ pub const DIPLENMADEA = struct {
     body: []const u8 = "",
 };
 
-pub const ModLineupCsReq = struct {
+pub const QuickTeamEditCsReq = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "ModLineupCsReq";
-    lineup: ?LineupData = null,
+    pub const pb_desc_name = "QuickTeamEditCsReq";
+    quick_team: ?QuickTeamData = null,
 };
 
-pub const ModLineupScRsp = struct {
+pub const QuickTeamEditScRsp = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "ModLineupScRsp";
+    pub const pb_desc_name = "QuickTeamEditScRsp";
     retcode: i32 = 0,
 };
 
@@ -8720,10 +8720,10 @@ pub const EAALIFGDDBE = struct {
     OFBIBCDBOEK: u32 = 0,
 };
 
-pub const LineupData = struct {
+pub const QuickTeamData = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "LineupData";
-    lineup_list: std.ArrayList(LineupInfo) = .empty,
+    pub const pb_desc_name = "QuickTeamData";
+    quick_team_list: std.ArrayList(QuickTeam) = .empty,
 };
 
 pub const EEJGEKEBJOL = struct {
@@ -10663,7 +10663,7 @@ pub const GEJHDFDFFAH = struct {
 pub const HMBNIKGFCDK = struct {
     pub const init: @This() = .{};
     pub const pb_desc_name = "HMBNIKGFCDK";
-    lineup_id: u32 = 0,
+    slot: u32 = 0,
 };
 
 pub const OENJGDGPJED = struct {
@@ -11970,7 +11970,7 @@ pub const OLDJDJHADHJ = struct {
 pub const KBINEPAMNHP = struct {
     pub const init: @This() = .{};
     pub const pb_desc_name = "KBINEPAMNHP";
-    lineup: ?LineupInfo = null,
+    quick_team: ?QuickTeam = null,
     UNK_KBINEPAMNHP_32: std.ArrayList(BuddyInfo) = .empty,
     weapon_list: std.ArrayList(WeaponInfo) = .empty,
     equip_list: std.ArrayList(EquipInfo) = .empty,
@@ -12285,9 +12285,9 @@ pub const LeaveCurSceneScRsp = struct {
     retcode: i32 = 0,
 };
 
-pub const LineupAvatar = struct {
+pub const QuickTeamAvatar = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "LineupAvatar";
+    pub const pb_desc_name = "QuickTeamAvatar";
     avatar_id: u32 = 0,
     HIEIGLCKILE: u32 = 0,
 };
@@ -16592,10 +16592,10 @@ pub const KAHDKGMDIED = struct {
     HPCFNIAGPIN: std.ArrayList(u32) = .empty,
 };
 
-pub const LineupSync = struct {
+pub const QuickTeamSync = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "LineupSync";
-    lineup_list: std.ArrayList(LineupInfo) = .empty,
+    pub const pb_desc_name = "QuickTeamSync";
+    quick_team_list: std.ArrayList(QuickTeam) = .empty,
 };
 
 pub const DEPHGMEBKFL = struct {
@@ -20539,7 +20539,7 @@ pub const GJBKJPKEBOH = struct {
 pub const OAAENKOLCBD = struct {
     pub const init: @This() = .{};
     pub const pb_desc_name = "OAAENKOLCBD";
-    lineup_id: ?CODACFBHNEK = null,
+    slot: ?CODACFBHNEK = null,
     rank: ?ABHOFJMHLMG = null,
     IEFBAJCGFGG: u32 = 0,
     JNMPPHMJBHL: u32 = 0,
@@ -25105,7 +25105,7 @@ pub const MAELEDHNPBC = enum(i32) {
 pub const BBEDECFIONK = struct {
     pub const init: @This() = .{};
     pub const pb_desc_name = "BBEDECFIONK";
-    lineup_id: ?APJMGCNCBHM = null,
+    slot: ?APJMGCNCBHM = null,
     FFNDLEDINFM: u32 = 0,
 };
 
@@ -26568,12 +26568,12 @@ pub const LICJALDJBJN = struct {
     retcode: i32 = 0,
 };
 
-pub const LineupInfo = struct {
+pub const QuickTeam = struct {
     pub const init: @This() = .{};
-    pub const pb_desc_name = "LineupInfo";
-    buddy_list: std.ArrayList(LineupBuddy) = .empty,
-    avatar_list: std.ArrayList(LineupAvatar) = .empty,
-    lineup_id: u32 = 0,
+    pub const pb_desc_name = "QuickTeam";
+    buddy_list: std.ArrayList(QuickTeamBuddy) = .empty,
+    avatar_list: std.ArrayList(QuickTeamAvatar) = .empty,
+    slot: u32 = 0,
     name: []const u8 = "",
 };
 
@@ -26613,7 +26613,7 @@ pub const AMMBJNIEMJD = struct {
     OHCPAPEPKKK: u32 = 0,
     GNONIIGMHDJ: ?ECNEEEIOBFL = null,
     lock: bool = false,
-    lineup_id: u32 = 0,
+    slot: u32 = 0,
 };
 
 pub const KAOENHJCJMM = struct {
@@ -28093,7 +28093,7 @@ pub const MiscSync = struct {
     CNJOCHFHNIN: std.ArrayList(JJKPOFPFJLM) = .empty,
     OJFLBLIIFAD: ?NEPDJAEHHID = null,
     NKMDOKHNAOK: ?JIPAMBFBNPC = null,
-    lineup: ?LineupSync = null,
+    quick_team: ?QuickTeamSync = null,
     post_girl: ?PostGirlSync = null,
     LMECIIGLFPN: ?AEGPEAODKGO = null,
 };
@@ -32950,7 +32950,7 @@ pub const MMJLEKBANIF = struct {
     pub const pb_desc_name = "MMJLEKBANIF";
     buddy_id: u32 = 0,
     MLKDKANGFEO: u32 = 0,
-    lineup_id: u32 = 0,
+    slot: u32 = 0,
 };
 
 pub const MMAKBEIKNOB = struct {
@@ -33646,7 +33646,7 @@ pub const FGOIJHDAECB = struct {
     pub const pb_desc_name = "FGOIJHDAECB";
     AHGGMICOHIE: u32 = 0,
     IEFBAJCGFGG: u32 = 0,
-    lineup_id: ?CODACFBHNEK = null,
+    slot: ?CODACFBHNEK = null,
 };
 
 pub const DMALEALJFCJ = struct {

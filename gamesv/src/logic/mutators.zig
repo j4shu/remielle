@@ -4,7 +4,7 @@ const namespaces: []const type = &.{
     @import("mutators/player.zig"),
     @import("mutators/avatar.zig"),
     @import("mutators/scene.zig"),
-    @import("mutators/lineup.zig"),
+    @import("mutators/quick_team.zig"),
 };
 
 pub fn dispatchLogicChanges(frame: *const Server.Frame, changes: *const logic.Changes) Error!void {

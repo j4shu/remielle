@@ -1,13 +1,13 @@
-pub fn mutateLineup(
+pub fn mutateQuickTeam(
     changes: logic.Changes.Subset(.{
-        logic.Changes.Lineup,
+        logic.Changes.QuickTeam,
     }),
     properties: logic.Properties.Mutable(.{
-        logic.Properties.Lineup,
+        logic.Properties.QuickTeam,
     }),
 ) !void {
-    for (changes.lineups) |change|
-        properties.lineup.meta[change.slot.toIndex()] = change.meta;
+    for (changes.quick_teams) |change|
+        properties.quick_team.meta[change.slot.toIndex()] = change.meta;
 }
 
 const logic = @import("../../logic.zig");

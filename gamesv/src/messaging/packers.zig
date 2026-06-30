@@ -208,53 +208,53 @@ pub fn packDungeonPackageInfo(
     };
 }
 
-pub fn packLineupData(arena: Allocator, lineups: []const Lineup.Meta) !pb.LineupData {
-    var lineup_list: std.ArrayList(pb.LineupInfo) = try .initCapacity(arena, Lineup.slots);
+pub fn packQuickTeamData(arena: Allocator, quick_teams: []const QuickTeam.Meta) !pb.QuickTeamData {
+    var quick_team_list: std.ArrayList(pb.QuickTeam) = try .initCapacity(arena, QuickTeam.slots);
 
-    for (lineups, 1..) |*lineup, lineup_id| {
-        var avatar_list: std.ArrayList(pb.LineupAvatar) = try .initCapacity(arena, Lineup.avatar_slots);
-        for (lineup.avatar_ids) |avatar_id| avatar_list.appendAssumeCapacity(.{ .avatar_id = @intFromEnum(avatar_id) });
+    for (quick_teams, 1..) |*quick_team, slot| {
+        var avatar_list: std.ArrayList(pb.QuickTeamAvatar) = try .initCapacity(arena, QuickTeam.avatar_slots);
+        for (quick_team.avatar_ids) |avatar_id| avatar_list.appendAssumeCapacity(.{ .avatar_id = @intFromEnum(avatar_id) });
 
-        var buddy_list: std.ArrayList(pb.LineupBuddy) = .empty;
-        if (lineup.buddy_id.unwrap()) |id| try buddy_list.append(arena, .{ .buddy_id = id });
+        var buddy_list: std.ArrayList(pb.QuickTeamBuddy) = .empty;
+        if (quick_team.buddy_id.unwrap()) |id| try buddy_list.append(arena, .{ .buddy_id = id });
 
-        lineup_list.appendAssumeCapacity(.{
-            .lineup_id = @truncate(lineup_id),
-            .name = lineup.name.view(),
+        quick_team_list.appendAssumeCapacity(.{
+            .slot = @truncate(slot),
+            .name = quick_team.name.view(),
             .avatar_list = avatar_list,
             .buddy_list = buddy_list,
         });
     }
 
-    return .{ .lineup_list = lineup_list };
+    return .{ .quick_team_list = quick_team_list };
 }
 
-pub fn packLineupSync(arena: Allocator, lineups: []const logic.Changes.Lineup) !pb.LineupSync {
-    var lineup_list: std.ArrayList(pb.LineupInfo) = try .initCapacity(arena, lineups.len);
+pub fn packQuickTeamSync(arena: Allocator, quick_teams: []const logic.Changes.QuickTeam) !pb.QuickTeamSync {
+    var quick_team_list: std.ArrayList(pb.QuickTeam) = try .initCapacity(arena, quick_teams.len);
 
-    for (lineups) |lineup| {
-        var avatar_list: std.ArrayList(pb.LineupAvatar) = try .initCapacity(arena, Lineup.avatar_slots);
-        for (lineup.meta.avatar_ids) |avatar_id| avatar_list.appendAssumeCapacity(.{ .avatar_id = @intFromEnum(avatar_id) });
+    for (quick_teams) |*quick_team| {
+        var avatar_list: std.ArrayList(pb.QuickTeamAvatar) = try .initCapacity(arena, QuickTeam.avatar_slots);
+        for (quick_team.meta.avatar_ids) |avatar_id| avatar_list.appendAssumeCapacity(.{ .avatar_id = @intFromEnum(avatar_id) });
 
-        var buddy_list: std.ArrayList(pb.LineupBuddy) = .empty;
-        if (lineup.meta.buddy_id.unwrap()) |id| try buddy_list.append(arena, .{ .buddy_id = id });
+        var buddy_list: std.ArrayList(pb.QuickTeamBuddy) = .empty;
+        if (quick_team.meta.buddy_id.unwrap()) |id| try buddy_list.append(arena, .{ .buddy_id = id });
 
-        lineup_list.appendAssumeCapacity(.{
-            .lineup_id = @intFromEnum(lineup.slot),
-            .name = lineup.meta.name.view(),
+        quick_team_list.appendAssumeCapacity(.{
+            .slot = @intFromEnum(quick_team.slot),
+            .name = quick_team.meta.name.view(),
             .avatar_list = avatar_list,
             .buddy_list = buddy_list,
         });
     }
 
-    return .{ .lineup_list = lineup_list };
+    return .{ .quick_team_list = quick_team_list };
 }
 
 const ArrayList = std.ArrayList;
 const GameMode = logic.Changes.GameMode;
 const Avatar = Properties.Avatar;
 const Equipment = Properties.Equipment;
-const Lineup = Properties.Lineup;
+const QuickTeam = Properties.QuickTeam;
 const Properties = logic.Properties;
 const Allocator = std.mem.Allocator;
 

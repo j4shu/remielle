@@ -6,7 +6,7 @@ npc_interaction: ?NpcInteraction,
 control_avatar: ?ControlAvatar,
 control_guise_avatar: ?ControlGuiseAvatar,
 avatars: []const Avatar,
-lineups: []const Lineup,
+quick_teams: []const QuickTeam,
 
 pub const init: Changes = .{
     .game_mode = null,
@@ -17,7 +17,7 @@ pub const init: Changes = .{
     .control_avatar = null,
     .control_guise_avatar = null,
     .avatars = &.{},
-    .lineups = &.{},
+    .quick_teams = &.{},
 };
 
 /// Game mode switch.
@@ -204,9 +204,9 @@ pub const Avatar = struct {
     awake_material_count: Properties.Avatar.Awakening.Material,
 };
 
-pub const Lineup = struct {
-    slot: Properties.Lineup.Slot,
-    meta: Properties.Lineup.Meta,
+pub const QuickTeam = struct {
+    slot: Properties.QuickTeam.Slot,
+    meta: Properties.QuickTeam.Meta,
 };
 
 pub const subset_marker_name = "logic_changes_subset_marker";

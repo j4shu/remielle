@@ -4,7 +4,7 @@ pub const Name = rmmem.LimitedString(14);
 
 meta: [slots]Meta,
 
-pub const init: Lineup = std.mem.zeroes(Lineup);
+pub const init: QuickTeam = std.mem.zeroes(QuickTeam);
 
 pub const Meta = struct {
     name: Name,
@@ -15,15 +15,15 @@ pub const Meta = struct {
 pub const Slot = enum(u8) {
     _,
 
-    pub fn fromInt(lineup_id: u32) ?Slot {
-        if (lineup_id < 1 or lineup_id > slots)
+    pub fn fromInt(slot: u32) ?Slot {
+        if (slot < 1 or slot > slots)
             return null;
 
-        return @enumFromInt(@as(u8, @intCast(lineup_id)));
+        return @enumFromInt(@as(u8, @intCast(slot)));
     }
 
-    pub fn toIndex(lineup_id: Slot) u8 {
-        return @intFromEnum(lineup_id) - 1;
+    pub fn toIndex(slot: Slot) u8 {
+        return @intFromEnum(slot) - 1;
     }
 };
 
@@ -41,4 +41,4 @@ pub const OptionalID = enum(u32) {
 
 const rmmem = @import("rmmem");
 const std = @import("std");
-const Lineup = @This();
+const QuickTeam = @This();
