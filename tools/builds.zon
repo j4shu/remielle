@@ -73,7 +73,7 @@
             .{ .slot = 3, .set = .WhiteWaterBallad, .subs = .{ .{ .CritDmg, 4 }, .{ .CritRate, 1 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
             .{ .slot = 4, .set = .WhiteWaterBallad, .main = .AtkPct, .subs = .{ .{ .CritDmg, 4 }, .{ .CritRate, 1 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
             .{ .slot = 5, .set = .WhiteWaterBallad, .main = .PenRatio, .subs = .{ .{ .CritDmg, 4 }, .{ .CritRate, 1 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
-            .{ .slot = 6, .set = .WhiteWaterBallad, .main = .AtkPct, .subs = .{ .{ .CritDmg, 4 }, .{ .CritRate, 1 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+            .{ .slot = 6, .set = .WhiteWaterBallad, .main = .AtkPct, .subs = .{ .{ .CritDmg, 3 }, .{ .CritRate, 2 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
         } },
 
         // ── Sunna (CRIT Build) ── W-Engine Thoughtbop | 4-PC Moonlight Lullaby (slots 3-6) + 2-PC Swing Jazz (slots 1-2) ──
@@ -89,6 +89,23 @@
             .{ .slot = 6, .set = .MoonlightLullaby, .main = .EnergyRegen, .subs = .{ .{ .AtkPct, 5 }, .{ .AtkFlat, 0 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 } } },
         } },
 
+        // ── Zhao ── W-Engine Half-Sugar Bunny | 4-PC Bunny in Wonderland (slots 3-6) + 2-PC Yunkui Tales (slots 1-2) ──
+        // https://www.prydwen.gg/zenless/characters/zhao
+        // prydwen: D4 HP% | D5 HP% | D6 Energy Regen
+        // subs: HP% (Until 27000 Initial HP) > Flat HP (Until 27000 Initial HP) > Crit Rate = Crit DMG
+        .{
+            .avatar = .Zhao,
+            .weapon = .HalfSugarBunny,
+            .slots = .{
+                .{ .slot = 1, .set = .YunkuiTales, .subs = .{ .{ .HpPct, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
+                .{ .slot = 2, .set = .YunkuiTales, .subs = .{ .{ .HpPct, 5 }, .{ .HpFlat, 0 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 } } },
+                .{ .slot = 3, .set = .BunnyInWonderland, .subs = .{ .{ .HpPct, 5 }, .{ .HpFlat, 0 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 } } },
+                .{ .slot = 4, .set = .BunnyInWonderland, .main = .HpPct, .subs = .{ .{ .HpFlat, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
+                .{ .slot = 5, .set = .BunnyInWonderland, .main = .HpPct, .subs = .{ .{ .HpFlat, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
+                .{ .slot = 6, .set = .BunnyInWonderland, .main = .EnergyRegen, .subs = .{ .{ .HpPct, 5 }, .{ .HpFlat, 0 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 } } },
+            },
+        },
+
         // ── Miyabi ── W-Engine Hailstorm Shrine | 4-PC Branch & Blade Song (slots 3-6) + 2-PC Polar Metal (slots 1-2) ──
         // https://www.prydwen.gg/zenless/characters/miyabi
         // prydwen: D4 CRIT Rate% >= ATK% | D5 Ice DMG% = ATK% | D6 ATK%
@@ -97,9 +114,86 @@
             .{ .slot = 1, .set = .PolarMetal, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .AnomProf, 0 } } },
             .{ .slot = 2, .set = .PolarMetal, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .AnomProf, 0 } } },
             .{ .slot = 3, .set = .BranchBladeSong, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .AnomProf, 0 } } },
-            .{ .slot = 4, .set = .BranchBladeSong, .main = .CritRate, .subs = .{ .{ .CritDmg, 3 }, .{ .AtkPct, 2 }, .{ .AnomProf, 0 }, .{ .AtkFlat, 0 } } },
-            .{ .slot = 5, .set = .BranchBladeSong, .main = .IceDmg, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .AnomProf, 0 } } },
-            .{ .slot = 6, .set = .BranchBladeSong, .main = .AtkPct, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AnomProf, 0 }, .{ .AtkFlat, 0 } } },
+            .{ .slot = 4, .set = .BranchBladeSong, .main = .CritDmg, .subs = .{ .{ .CritRate, 3 }, .{ .AtkPct, 2 }, .{ .AnomProf, 0 }, .{ .AtkFlat, 0 } } },
+            .{ .slot = 5, .set = .BranchBladeSong, .main = .IceDmg, .subs = .{ .{ .CritRate, 0 }, .{ .CritDmg, 5 }, .{ .AtkPct, 0 }, .{ .AnomProf, 0 } } },
+            .{ .slot = 6, .set = .BranchBladeSong, .main = .AtkPct, .subs = .{ .{ .CritRate, 0 }, .{ .CritDmg, 5 }, .{ .AnomProf, 0 }, .{ .AtkFlat, 0 } } },
         } },
+
+        // ── Nangong Yu ── W-Engine Neon Fantasies | 4-PC Phaethon's Melody (slots 3-6) + 2-PC Freedom Blues (slots 1-2) ──
+        // https://www.prydwen.gg/zenless/characters/nangong-yu
+        // prydwen: D4 Anomaly Proficiency | D5 Ether DMG% = ATK% > PEN Ratio% | D6 Anomaly Mastery
+        // subs: Anomaly Proficiency > ATK% > PEN > ATK
+        .{
+            .avatar = .NangongYu,
+            .weapon = .NeonFantasies,
+            .slots = .{
+                .{ .slot = 1, .set = .FreedomBlues, .subs = .{ .{ .AnomProf, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+                .{ .slot = 2, .set = .FreedomBlues, .subs = .{ .{ .AnomProf, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 }, .{ .HpPct, 0 } } }, // HpPct [user pick]
+                .{ .slot = 3, .set = .PhaethonsMelody, .subs = .{ .{ .AnomProf, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+                .{ .slot = 4, .set = .PhaethonsMelody, .main = .AnomProf, .subs = .{ .{ .AtkPct, 5 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 }, .{ .HpPct, 0 } } }, // HpPct [user pick]
+                .{ .slot = 5, .set = .PhaethonsMelody, .main = .EtherDmg, .subs = .{ .{ .AnomProf, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+                .{ .slot = 6, .set = .PhaethonsMelody, .main = .AnomMastery, .subs = .{ .{ .AnomProf, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+            },
+        },
+
+        // ── Ukinami Yuzuha (Other Teams) ── W-Engine Weeping Cradle | 4-PC Moonlight Lullaby (slots 3-6) + 2-PC Phaethon's Melody (slots 1-2) ──
+        // https://www.prydwen.gg/zenless/characters/ukinami-yuzuha
+        // prydwen: D4 ATK% >= Anomaly Proficiency | D5 ATK% >= PEN Ratio% | D6 Anomaly Mastery = ATK%
+        // subs: ATK% > ATK (until 3000) > Anomaly Proficiency > PEN
+        .{
+            .avatar = .Yuzuha,
+            .weapon = .Metanukimorphosis,
+            .slots = .{
+                .{ .slot = 1, .set = .PhaethonsMelody, .subs = .{ .{ .AtkPct, 5 }, .{ .AtkFlat, 0 }, .{ .AnomProf, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 2, .set = .PhaethonsMelody, .subs = .{ .{ .AtkPct, 5 }, .{ .AnomProf, 0 }, .{ .PenFlat, 0 }, .{ .HpPct, 0 } } }, // HpPct [user pick]
+                .{ .slot = 3, .set = .MoonlightLullaby, .subs = .{ .{ .AtkPct, 0 }, .{ .AtkFlat, 0 }, .{ .AnomProf, 5 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 4, .set = .MoonlightLullaby, .main = .AtkPct, .subs = .{ .{ .AtkFlat, 0 }, .{ .AnomProf, 5 }, .{ .PenFlat, 0 }, .{ .HpPct, 0 } } }, // HpPct [user pick]
+                .{ .slot = 5, .set = .MoonlightLullaby, .main = .AtkPct, .subs = .{ .{ .AtkFlat, 0 }, .{ .AnomProf, 5 }, .{ .PenFlat, 0 }, .{ .HpPct, 0 } } }, // HpPct [user pick]
+                .{ .slot = 6, .set = .MoonlightLullaby, .main = .AnomMastery, .subs = .{ .{ .AtkPct, 0 }, .{ .AtkFlat, 0 }, .{ .AnomProf, 5 }, .{ .PenFlat, 0 } } },
+            },
+        },
+
+        // ── Yixuan ── W-Engine Qingming Birdcage | 4-PC Yunkui Tales (slots 3-6) + 2-PC Woodpecker Electro (slots 1-2) ──
+        // https://www.prydwen.gg/zenless/characters/yixuan
+        // prydwen: D4 CRIT DMG% = CRIT Rate% | D5 Ether DMG% > HP% | D6 HP%
+        // subs: CRIT Rate = CRIT DMG > HP% > ATK% > Flat HP
+        .{ .avatar = .Yixuan, .weapon = .QingmingBirdcage, .slots = .{
+            .{ .slot = 1, .set = .WoodpeckerElectro, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .HpPct, 0 }, .{ .AtkPct, 0 } } },
+            .{ .slot = 2, .set = .WoodpeckerElectro, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .HpPct, 0 }, .{ .AtkPct, 0 } } },
+            .{ .slot = 3, .set = .YunkuiTales, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .HpPct, 0 }, .{ .AtkPct, 0 } } },
+            .{ .slot = 4, .set = .YunkuiTales, .main = .CritDmg, .subs = .{ .{ .CritRate, 3 }, .{ .HpPct, 2 }, .{ .AtkPct, 0 }, .{ .HpFlat, 0 } } },
+            .{ .slot = 5, .set = .YunkuiTales, .main = .EtherDmg, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .HpPct, 0 }, .{ .AtkPct, 0 } } },
+            .{ .slot = 6, .set = .YunkuiTales, .main = .HpPct, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .HpFlat, 0 } } },
+        } },
+
+        // ── Dialyn ── W-Engine Yesterday Calls | 4-PC King of the Summit (slots 3-6) + 2-PC Woodpecker Electro (slots 1-2) ──
+        // https://www.prydwen.gg/zenless/characters/dialyn
+        // prydwen: D4 CRIT Rate% | D5 ATK% >= Physical DMG% = PEN Ratio% | D6 Energy Regen
+        // subs: CRIT RATE (until 100%) > CRIT DMG = ATK% > PEN > ATK
+        .{ .avatar = .Dialyn, .weapon = .YesterdayCalls, .slots = .{
+            .{ .slot = 1, .set = .WoodpeckerElectro, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+            .{ .slot = 2, .set = .WoodpeckerElectro, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+            .{ .slot = 3, .set = .KingOfTheSummit, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+            .{ .slot = 4, .set = .KingOfTheSummit, .main = .CritDmg, .subs = .{ .{ .CritRate, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+            .{ .slot = 5, .set = .KingOfTheSummit, .main = .AtkPct, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+            .{ .slot = 6, .set = .KingOfTheSummit, .main = .EnergyRegen, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+        } },
+
+        // ── Lucia ── W-Engine Dreamlit Hearth | 4-PC Moonlight Lullaby (slots 3-6) + 2-PC Yunkui Tales (slots 1-2) ──
+        // https://www.prydwen.gg/zenless/characters/lucia
+        // prydwen: D4 HP% | D5 HP% | D6 HP%
+        // subs: HP% > HP > CRIT Rate >= CRIT DMG
+        .{
+            .avatar = .Lucia,
+            .weapon = .DreamlitHearth,
+            .slots = .{
+                .{ .slot = 1, .set = .YunkuiTales, .subs = .{ .{ .HpPct, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
+                .{ .slot = 2, .set = .YunkuiTales, .subs = .{ .{ .HpPct, 4 }, .{ .HpFlat, 1 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 } } },
+                .{ .slot = 3, .set = .MoonlightLullaby, .subs = .{ .{ .HpPct, 4 }, .{ .HpFlat, 1 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 } } },
+                .{ .slot = 4, .set = .MoonlightLullaby, .main = .HpPct, .subs = .{ .{ .HpFlat, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
+                .{ .slot = 5, .set = .MoonlightLullaby, .main = .HpPct, .subs = .{ .{ .HpFlat, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
+                .{ .slot = 6, .set = .MoonlightLullaby, .main = .HpPct, .subs = .{ .{ .HpFlat, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
+            },
+        },
     },
 }
