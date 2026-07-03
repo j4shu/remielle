@@ -34,10 +34,10 @@
                 },
                 .game_res = .{
                     .audio_revision = "17006296",
-                    .base_url = "https://autopatchcn.juequling.com/game_res/beta_live/output_17059869_e55b215cb8/client/",
+                    .base_url = "http://127.0.0.1:18888/",
                     .branch = "beta_live",
                     .md5_files =
-                    \\[{"fileName":"res_version","fileSize":2906716,"fileMD5":"9291887266542601863"},{"fileName":"audio_version","fileSize":67632,"fileMD5":"16306888458043811221"},{"fileName":"base_revision","fileSize":19,"fileMD5":"12399250627823283967"}]
+                    \\[{"fileName":"res_version","fileSize":2906716,"fileMD5":"9291887266542601863"},{"fileName":"audio_version","fileSize":67974,"fileMD5":"14964258925784054074"},{"fileName":"base_revision","fileSize":19,"fileMD5":"12399250627823283967"}]
                     ,
                     .res_revision = "17059869",
                 },
