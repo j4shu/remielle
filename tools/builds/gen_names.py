@@ -5,7 +5,7 @@ EnkaNetwork's ZZZ dataset.
 These enums are pure name->id lookup tables (see the doc comments in zzz_names.zig):
 edit-save.zig only ever materializes the entries that builds.zon actually references,
 so every entry here is inert until a build names it. Pre-populating them means
-tools/add-build can resolve an already-released character/W-Engine by name without the
+the add-build skill can resolve an already-released character/W-Engine by name without the
 manual EnkaNetwork id-resolution dance, and inspect-save can show every owned item by
 name instead of a raw id.
 
@@ -15,9 +15,9 @@ The script rewrites only the lines BETWEEN the `// <gen:avatar>` / `// </gen:ava
 unchanged dataset is a no-op (idempotent).
 
 Usage:
-    python tools/gen_names.py            # fetch live data, rewrite tools/zzz_names.zig
-    python tools/gen_names.py --dir DIR  # read avatars/weapons/locs.json from DIR instead
-    python tools/gen_names.py --check    # generate but do not write; exit 1 if it would change
+    python tools/builds/gen_names.py            # fetch live data, rewrite tools/builds/zzz_names.zig
+    python tools/builds/gen_names.py --dir DIR  # read avatars/weapons/locs.json from DIR instead
+    python tools/builds/gen_names.py --check    # generate but do not write; exit 1 if it would change
 
 Data sources (same lineage the Set ids came from):
     store/zzz/avatars.json  id -> { Name: <codename>, ... }

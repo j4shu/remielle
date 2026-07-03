@@ -1,4 +1,4 @@
-// W-Engine + drive-disc spec consumed at compile time by tools/edit-save.zig.
+// W-Engine + drive-disc spec consumed at compile time by tools/builds/edit-save.zig.
 //
 // The root is `.characters`: a list of per-character blocks. Each block names an
 // `.avatar` (a friendly name from the `Avatar` enum in zzz_names.zig), a `.weapon`

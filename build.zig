@@ -159,7 +159,7 @@ pub fn build(b: *Build) void {
     const edit_save = b.addExecutable(.{
         .name = "edit-save",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("tools/edit-save.zig"),
+            .root_source_file = b.path("tools/builds/edit-save.zig"),
             .imports = &.{
                 .{ .name = "rmpb", .module = rmpb },
             },
@@ -170,7 +170,7 @@ pub fn build(b: *Build) void {
 
     // The build spec and the set/weapon template tables, imported at compile time.
     edit_save.root_module.addAnonymousImport("builds", .{
-        .root_source_file = b.path("tools/builds.zon"),
+        .root_source_file = b.path("tools/builds/builds.zon"),
     });
     edit_save.root_module.addAnonymousImport("EquipmentSuitTemplateTb", .{
         .root_source_file = b.path("assets/filecfg/EquipmentSuitTemplateTb.zon"),
@@ -187,14 +187,14 @@ pub fn build(b: *Build) void {
 
     b.step(
         "edit-save",
-        "rewrite a PlayerSave .bin's W-Engines + drive discs from tools/builds.zon and auto-equip them (usage: zig build edit-save -- <path>)",
+        "rewrite a PlayerSave .bin's W-Engines + drive discs from tools/builds/builds.zon and auto-equip them (usage: zig build edit-save -- <path>)",
     ).dependOn(&run_edit_save.step);
 
     // Read-only companion: dump the W-Engines + discs + equipped slots in a save (never writes).
     const inspect_save = b.addExecutable(.{
         .name = "inspect-save",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("tools/inspect-save.zig"),
+            .root_source_file = b.path("tools/builds/inspect-save.zig"),
             .imports = &.{
                 .{ .name = "rmpb", .module = rmpb },
             },

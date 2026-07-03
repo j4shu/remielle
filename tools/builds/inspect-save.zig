@@ -15,7 +15,7 @@
 //!
 //! It NEVER writes — safe to run any time, even while logged in. Use it to confirm a
 //! `zig build edit-save` run landed, or to debug what a save actually contains. The
-//! `Set`/`Avatar`/`Weapon` name tables come from the same tools/zzz_names.zig that
+//! `Set`/`Avatar`/`Weapon` name tables come from the same tools/builds/zzz_names.zig that
 //! edit-save writes from, so the names here always match what was written.
 //!
 //! Usage (from the `remielle` directory):

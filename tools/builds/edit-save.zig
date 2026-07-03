@@ -1,8 +1,8 @@
 //! edit-save — overwrite the W-Engines + drive discs in a remielle PlayerSave
 //! (`Persistent/LocalStorage/USD_*.bin`) with hand-crafted loadouts defined in
-//! `tools/builds.zon`, and auto-equip them onto their characters.
+//! `tools/builds/builds.zon`, and auto-equip them onto their characters.
 //!
-//! `tools/builds.zon` is grouped per character: each block names an `.avatar`
+//! `tools/builds/builds.zon` is grouped per character: each block names an `.avatar`
 //! (a friendly name from the `Avatar` enum below), a `.weapon` (a friendly name
 //! from the `Weapon` enum), and its 6 slot templates. One maxed W-Engine is made
 //! for the named weapon, and for each slot one disc is generated for the `.set` it
@@ -26,7 +26,7 @@
 //! Run while the game server is stopped / you are logged out — otherwise the next
 //! disconnect/shutdown save will overwrite the edit.
 //!
-//! All of tools/builds.zon's rules are checked at comptime, so a bad spec fails
+//! All of tools/builds/builds.zon's rules are checked at comptime, so a bad spec fails
 //! to compile before any save is read.
 //!
 //! Usage (from the `remielle` directory):
@@ -169,7 +169,7 @@ const spec = @import("builds");
 const suit_table = @import("EquipmentSuitTemplateTb");
 const weapon_table = @import("WeaponTemplateTb");
 
-// Friendly name tables shared with tools/inspect-save.zig so the writer and the reader
+// Friendly name tables shared with tools/builds/inspect-save.zig so the writer and the reader
 // can never disagree about a name: Set (set name → suit id), Avatar (character name →
 // avatar id), and Weapon (W-Engine name → weapon id).
 const zzz = @import("zzz_names.zig");
@@ -178,7 +178,7 @@ const Avatar = zzz.Avatar;
 const Weapon = zzz.Weapon;
 
 // Gear-uid encoding bases (an avatar reference stores `raw uid + base`); see the docs in
-// tools/zzz_names.zig. Shared so the writer and inspect-save can never disagree.
+// tools/builds/zzz_names.zig. Shared so the writer and inspect-save can never disagree.
 const equipment_uid_base = zzz.equipment_uid_base;
 const weapon_uid_base = zzz.weapon_uid_base;
 
@@ -193,7 +193,7 @@ const CharacterTemplate = struct {
 };
 
 /// Per-character W-Engine + disc builds resolved + validated at compile time from
-/// `tools/builds.zon`. Each character's `.slots` lower to 6 `DiscTemplate`s placed
+/// `tools/builds/builds.zon`. Each character's `.slots` lower to 6 `DiscTemplate`s placed
 /// by slot position (`discs[slot - 1]`), so index N-1 is always slot N.
 const character_templates = blk: {
     @setEvalBranchQuota(eval_quota);
