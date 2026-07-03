@@ -63,6 +63,27 @@ serving live-3.0.0 files through a local CDN that the client's own login-time
   machine-specific paths; kept because they encode the file formats (AKPK LUT
   offsets are in blockSize units; HIRC type 2/11 source extraction).
 
+## Related workspace folders (outside this repo)
+
+- `<workspace>\audio-cdn\` — the folder the :18888 http.server serves.
+  Required whenever the game runs, but fully **disposable**: everything in it
+  is recreated by the procedure below. Its External/Streamed pcks are NTFS
+  hardlinks into the beta StreamingAssets, so its real disk cost is ~2.2 GB
+  (the merged SFX pck + the three copied live SoundBanks) — not the ~6 GB a
+  naive `du` reports.
+- `<workspace>\audio-import-backup\` — **irreplaceable**, keep it (34 MB).
+  Holds the pristine beta originals of exactly what the voice import
+  overwrote in place inside the beta StreamingAssets: the stripped
+  `SoundBank_En/Jp_0.pck` (17 MB each), a specimen 60 B `External_En_0.pck`
+  stub, per-language 92 B `Patch`/`Hotfix` stubs, plus copies of the two
+  original manifests (byte-identical to the `*.orig` files in this folder).
+  The Cn SoundBank was never overwritten — its stripped original still sits
+  in StreamingAssets — and the remaining External/Streamed stub originals
+  weren't kept individually (they're 60 B empties; their exact hashes are all
+  recorded in `audio_version_persist.orig`). Restoring the pristine client =
+  copy these back over StreamingAssets and forge the manifest entries back to
+  their `audio_version_persist.orig` values.
+
 ## Rebuilding `audio-cdn/` from scratch
 
 The served pcks (~2.2 GB copies + hardlinks) are too big to version. To
