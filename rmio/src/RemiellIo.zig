@@ -1,4 +1,5 @@
 impl: Impl,
+gpa: Allocator,
 arena: std.heap.ArenaAllocator,
 coro_storage: Coroutine.Storage,
 current_coro: ?*Coroutine,
@@ -56,49 +57,26 @@ const WaitPoint = struct {
 
         /// The coroutine is not waiting on anything.
         none: void,
+        /// The coroutine is waiting until shutdown sequence is initiated.
+        shutdown: void,
         /// The coroutine has finished and is now in an idle state.
         idle: void,
         /// The coroutine is waiting for a `futexWake`.
         futex: Futex,
         /// The coroutine is waiting for an I/O operation to complete.
         operation: struct {
-            /// How many of those below are pending
-            outstanding: u2,
-
-            primary: Operation.Storage.Tagged,
-            cancelation: Operation.Storage.Tagged,
+            /// How many operations are in-flight for this coroutine.
+            outstanding: u32,
+            completed_list: DoublyLinkedList,
+            status: enum {
+                waiting_for_one_or_more,
+                waiting_for_all,
+                scheduled,
+            },
         },
         /// The coroutine is waiting for another coroutine to exit.
         coroutine: *Coroutine,
-
-        pub fn ready(awaitee: *const Awaitee) bool {
-            return switch (awaitee.*) {
-                .none => true, // coroutine control flow is not blocked on anything.
-                .idle => false, // coroutine has exited.
-                .futex => false, // coroutine is waiting for an explicit wakeup call.
-                .operation => |operation| operation.outstanding == 0,
-                .coroutine => |child| child.state == .finished,
-            };
-        }
     };
-
-    pub fn submit(wp: *WaitPoint, operation: Operation, rio: *RemiellIo) void {
-        wp.awaitee = .{
-            .operation = .{
-                .outstanding = 1,
-                .primary = .{
-                    .tag = 0, // Primary
-                    .storage = .init(operation),
-                },
-                .cancelation = .{
-                    .tag = 1, // Cancelation
-                    .storage = undefined, // Populated by `cancel`.
-                },
-            },
-        };
-
-        rio.impl.submissions.append(&wp.awaitee.operation.primary.storage.submission.node);
-    }
 };
 
 pub const InitError = error{
@@ -110,6 +88,7 @@ pub const InitError = error{
 pub fn init(gpa: Allocator, options: InitOptions) InitError!RemiellIo {
     return .{
         .impl = try .init(),
+        .gpa = gpa,
         .arena = .init(gpa),
         .coro_storage = .init(options.coroutine_limit, options.stack_size),
         .current_coro = null,
@@ -172,6 +151,7 @@ const Group = struct {
 };
 
 const Coroutine = struct {
+    cancelation: Cancelation,
     buffer: []u8,
     scheduling: union(enum) {
         awaitable: struct {
@@ -184,23 +164,50 @@ const Coroutine = struct {
         },
     },
     context_ptr: *const anyopaque,
-    state: State,
-    cancel_protection: Io.CancelProtection,
     list_node: DoublyLinkedList.Node,
     wait_point: WaitPoint,
     rio: *RemiellIo,
-    awaiter: ?Awaiter,
+    awaiter: ?*WaitPoint,
 
-    const State = enum(u2) {
-        running = 0b00,
-        finished = 0b01,
-        cancel_requested = 0b10,
-        cancel_acknowledged = 0b11,
-    };
+    pub fn hasExited(coro: *Coroutine) bool {
+        return switch (coro.wait_point.awaitee) {
+            .idle => true,
+            .none, .shutdown, .futex, .operation, .coroutine => false,
+        };
+    }
 
-    const Awaiter = union(enum) {
-        naked: *Io.fiber.Context,
-        coroutine: *Coroutine,
+    const Cancelation = packed struct(u3) {
+        status: enum(u2) {
+            none,
+            requested,
+            acknowledged,
+        },
+        protection: Io.CancelProtection,
+
+        const init: Cancelation = .{
+            .status = .none,
+            .protection = .unblocked,
+        };
+
+        fn request(cancelation: *Cancelation) void {
+            debug.assert(cancelation.status == .none); // always a race condition
+            cancelation.status = .requested;
+        }
+
+        fn swapProtection(cancelation: *Cancelation, new: Io.CancelProtection) Io.CancelProtection {
+            defer cancelation.protection = new;
+            return cancelation.protection;
+        }
+
+        fn acknowledge(cancelation: *Cancelation) Io.Cancelable!void {
+            switch (cancelation.*) {
+                .{ .status = .requested, .protection = .unblocked } => {
+                    cancelation.status = .acknowledged;
+                    return error.Canceled;
+                },
+                else => {},
+            }
+        }
     };
 
     const Storage = struct {
@@ -276,27 +283,11 @@ const Coroutine = struct {
                 },
             }
 
-            coro.state = .finished;
+            if (coro.awaiter) |awaiter|
+                rio.schedule(awaiter);
 
-            if (coro.awaiter) |awaiter| {
-                const awaiter_context = context: switch (awaiter) {
-                    .naked => {
-                        rio.current_coro = null;
-                        break :context &rio.naked_wait.context;
-                    },
-                    .coroutine => |other| {
-                        rio.current_coro = other;
-                        break :context &other.wait_point.context;
-                    },
-                };
-
-                _ = Io.fiber.contextSwitch(&.{
-                    .old = &coro.wait_point.context,
-                    .new = awaiter_context,
-                });
-            } else rio.block(.idle);
-
-            unreachable;
+            rio.yield(.exit);
+            unreachable; // resumed an exited coroutine.
         }
     };
 };
@@ -310,11 +301,14 @@ const vtable: Io.VTable = vtable: {
     v.groupCancel = groupCancel;
     v.cancel = cancel;
     v.recancel = recancel;
-    v.checkCancel = checkCancelErased;
+    v.checkCancel = checkCancel;
     v.swapCancelProtection = swapCancelProtection;
     v.futexWait = futexWait;
     v.futexWaitUncancelable = futexWaitUncancelable;
     v.futexWake = futexWake;
+    v.batchAwaitAsync = batchAwaitAsync;
+    v.batchAwaitConcurrent = batchAwaitConcurrent;
+    v.batchCancel = batchCancel;
     v.netBindIp = netBindIp;
     v.netSend = netSend;
     v.netListenIp = netListenIp;
@@ -354,7 +348,10 @@ fn futexWait(
         .deadline, .duration => return,
     }
 
-    rio.block(.{ .futex = .{
+    if (rio.current_coro) |coro|
+        try coro.cancelation.acknowledge();
+
+    rio.yield(.{ .futex = .{
         .ptr = ptr,
         .expected = expected,
         .cancelation = .unblocked,
@@ -365,9 +362,8 @@ fn futexWait(
         .blocked => unreachable,
         .unblocked => {},
         .canceled => {
-            debug.assert(rio.current_coro.?.state == .cancel_requested);
-            rio.current_coro.?.state = .cancel_acknowledged;
-            return error.Canceled;
+            try rio.current_coro.?.cancelation.acknowledge();
+            unreachable; // `acknowledge` must return `error.Canceled`
         },
     }
 }
@@ -375,7 +371,7 @@ fn futexWait(
 fn futexWaitUncancelable(userdata: ?*anyopaque, ptr: *const u32, expected: u32) void {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
 
-    rio.block(.{ .futex = .{
+    rio.yield(.{ .futex = .{
         .ptr = ptr,
         .expected = expected,
         .cancelation = .blocked,
@@ -412,13 +408,13 @@ fn futexWake(userdata: ?*anyopaque, ptr: *const u32, max_waiters: u32) void {
         };
     }
 
-    rio.schedule(rio.waitPoint()); // schedule self at last.
-    rio.block(.yield);
+    const point = rio.waitPoint();
+    rio.schedule(point); // schedule self at last.
+    rio.yield(.handoff);
 }
 
 fn operate(userdata: ?*anyopaque, operation: Io.Operation) Io.Cancelable!Io.Operation.Result {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
     switch (operation) {
         .net_receive => |*o| {
@@ -427,18 +423,11 @@ fn operate(userdata: ?*anyopaque, operation: Io.Operation) Io.Cancelable!Io.Oper
 
             const message = &o.message_buffer[0];
 
-            const point = rio.waitPoint();
-            point.submit(.{ .net_receive = .{
+            const bytes_received = rio.syscall(.net_receive, .{
                 .socket_handle = o.socket_handle,
                 .from = &message.from,
                 .buffer = o.data_buffer,
-            } }, rio);
-
-            rio.block(.submission);
-
-            const bytes_received = rio.unblock(
-                point.awaitee.operation.primary.storage.completion.result.net_receive,
-            ) catch |err| switch (err) {
+            }) catch |err| switch (err) {
                 error.Canceled => |e| return e,
                 else => |e| return .{ .net_receive = .{ e, 0 } },
             };
@@ -452,14 +441,14 @@ fn operate(userdata: ?*anyopaque, operation: Io.Operation) Io.Cancelable!Io.Oper
             const iovecs_capacity = if (Operation.FileWrite.vectored) 8 else 0;
             var iovecs_buffer: [iovecs_capacity]Impl.Vector(.@"const") = undefined;
 
-            if (!rio.submitFileWrite(&iovecs_buffer, o.file.handle, .streaming, o.header, o.data, o.splat))
-                return .{ .file_write_streaming = 0 };
-
-            rio.block(.submission);
-
             return .{
-                .file_write_streaming = rio.unblock(
-                    rio.waitPoint().awaitee.operation.primary.storage.completion.result.file_write,
+                .file_write_streaming = rio.fileWrite(
+                    &iovecs_buffer,
+                    o.file.handle,
+                    .streaming,
+                    o.header,
+                    o.data,
+                    o.splat,
                 ) catch |err| switch (err) {
                     error.Unseekable => unreachable, // streaming
                     error.Canceled => |e| return e,
@@ -472,12 +461,12 @@ fn operate(userdata: ?*anyopaque, operation: Io.Operation) Io.Cancelable!Io.Oper
             const iovecs_capacity = if (Operation.FileRead.vectored) 8 else 0;
             var iovecs_buffer: [iovecs_capacity]Impl.Vector(.@"var") = undefined;
 
-            rio.submitFileRead(&iovecs_buffer, o.file.handle, .streaming, o.data);
-            rio.block(.submission);
-
             return .{
-                .file_read_streaming = rio.unblock(
-                    rio.waitPoint().awaitee.operation.primary.storage.completion.result.file_read,
+                .file_read_streaming = rio.fileRead(
+                    &iovecs_buffer,
+                    o.file.handle,
+                    .streaming,
+                    o.data,
                 ) catch |err| switch (err) {
                     error.Unseekable => unreachable, // streaming
                     error.Canceled => |e| return e,
@@ -487,6 +476,361 @@ fn operate(userdata: ?*anyopaque, operation: Io.Operation) Io.Cancelable!Io.Oper
         },
 
         .device_io_control => unreachable, // Not implemented
+    }
+}
+
+// Trailing:
+// * [batch.storage.len]Operation.Storage.WithAwaiter
+const BatchUserdata = extern struct {
+    pending_count: u32,
+
+    inline fn operations(userdata: *BatchUserdata) [*]Operation.Storage.WithAwaiter {
+        return @ptrFromInt(std.mem.alignForward(
+            usize,
+            @intFromPtr(userdata) + @sizeOf(@FieldType(BatchUserdata, "pending_count")),
+            @alignOf(Operation.Storage.WithAwaiter),
+        ));
+    }
+
+    fn allocationSize(operations_count: usize) usize {
+        const operations_base = std.mem.alignForward(
+            usize,
+            @sizeOf(@FieldType(BatchUserdata, "pending_count")),
+            @alignOf(Operation.Storage.WithAwaiter),
+        );
+
+        const operations_size = std.mem.alignForward(
+            usize,
+            @sizeOf(Operation.Storage.WithAwaiter),
+            @alignOf(Operation.Storage.WithAwaiter),
+        ) * operations_count;
+
+        return operations_base + operations_size;
+    }
+
+    fn alloc(gpa: Allocator, operations_count: usize) Allocator.Error!*BatchUserdata {
+        return @ptrCast(try gpa.alignedAlloc(
+            u8,
+            .of(BatchUserdata),
+            allocationSize(operations_count),
+        ));
+    }
+
+    fn destroy(userdata: *BatchUserdata, gpa: Allocator, operations_count: usize) void {
+        const bytes = @as(
+            [*]align(@alignOf(BatchUserdata)) u8,
+            @ptrCast(@alignCast(userdata)),
+        )[0..allocationSize(operations_count)];
+
+        gpa.free(bytes);
+    }
+
+    fn indexOf(userdata: *BatchUserdata, item: *Operation.Storage.WithAwaiter) usize {
+        const list = userdata.operations();
+        return @divExact(@intFromPtr(item) - @intFromPtr(list), std.mem.alignForward(
+            usize,
+            @sizeOf(Operation.Storage.WithAwaiter),
+            @alignOf(Operation.Storage.WithAwaiter),
+        ));
+    }
+
+    const NetReceive = extern struct {
+        message_buffer: [*]Io.net.IncomingMessage,
+        data_buffer: [*]u8,
+
+        const TypeErased = Io.Operation.Storage.Pending.Userdata;
+
+        comptime {
+            debug.assert(@sizeOf(NetReceive) <= @sizeOf(TypeErased));
+        }
+
+        inline fn fromErased(type_erased: *TypeErased) *NetReceive {
+            return @ptrCast(type_erased);
+        }
+
+        fn init(userdata: *NetReceive, operation: *const Io.Operation.NetReceive) void {
+            userdata.message_buffer = operation.message_buffer.ptr;
+            userdata.data_buffer = operation.data_buffer.ptr;
+        }
+    };
+};
+
+fn batchAwaitAsync(userdata: ?*anyopaque, batch: *Io.Batch) Io.Cancelable!void {
+    batchAwaitConcurrent(userdata, batch, .none) catch |err| switch (err) {
+        error.Canceled => |e| return e,
+        error.Timeout => unreachable,
+        error.ConcurrencyUnavailable => {
+            // If concurrency is not available, perform one operation and return.
+
+            const submitted_index = switch (batch.submitted.head) {
+                .none => return,
+                _ => |index| index.toIndex(),
+            };
+
+            const submission = &batch.storage[submitted_index].submission;
+            const result = try operate(userdata, submission.operation);
+
+            batch.submitted = .{ .head = submission.node.next, .tail = submission.node.next };
+
+            batch.storage[submitted_index] = .{ .completion = .{
+                .node = .{ .next = batch.completed.head },
+                .result = result,
+            } };
+
+            batch.completed.head = @enumFromInt(submitted_index);
+        },
+    };
+}
+
+fn batchAwaitConcurrent(
+    userdata: ?*anyopaque,
+    batch: *Io.Batch,
+    timeout: Io.Timeout,
+) Io.Batch.AwaitConcurrentError!void {
+    const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
+    const wait_point = rio.waitPoint();
+
+    switch (timeout) {
+        .none => {},
+        .deadline, .duration => return error.ConcurrencyUnavailable, // Not implemented
+    }
+
+    if (rio.current_coro) |coro|
+        try coro.cancelation.acknowledge();
+
+    const batch_userdata: *BatchUserdata = if (batch.userdata) |type_erased|
+        @ptrCast(@alignCast(type_erased))
+    else create: {
+        const batch_userdata = BatchUserdata.alloc(rio.gpa, batch.storage.len) catch
+            return error.ConcurrencyUnavailable;
+
+        batch_userdata.pending_count = 0;
+
+        batch.userdata = batch_userdata;
+        break :create batch_userdata;
+    };
+
+    const batched_list = batch_userdata.operations()[0..batch.storage.len];
+
+    var next = batch.submitted.head;
+    while (next != .none) {
+        const index = next.toIndex();
+        const storage = &batch.storage[index];
+
+        next = storage.submission.node.next;
+
+        switch (storage.submission.operation) {
+            .file_read_streaming,
+            .file_write_streaming,
+            .device_io_control,
+            => return error.ConcurrencyUnavailable, // TODO
+
+            .net_receive => |net_receive| {
+                const message = &net_receive.message_buffer[0];
+
+                batched_list[index] = .{
+                    .wait_point = wait_point,
+                    .storage = .init(.{ .net_receive = .{
+                        .socket_handle = net_receive.socket_handle,
+                        .from = &message.from,
+                        .buffer = net_receive.data_buffer,
+                    } }),
+                };
+
+                rio.impl.submissions.append(&batched_list[index].storage.submission.node);
+
+                storage.* = .{
+                    .pending = .{
+                        .node = .{ .prev = batch.pending.tail, .next = .none },
+                        .tag = .net_receive,
+                        .userdata = undefined,
+                    },
+                };
+
+                const operation_userdata: *BatchUserdata.NetReceive = .fromErased(&storage.pending.userdata);
+                operation_userdata.init(&net_receive);
+            },
+        }
+
+        switch (batch.pending.tail) {
+            .none => batch.pending.head = @enumFromInt(index),
+            _ => |tail| batch.storage[tail.toIndex()].pending.node.next = @enumFromInt(index),
+        }
+
+        batch.storage[index].pending.node.prev = batch.pending.tail;
+
+        // `submitted.tail` is used only for `Batch.addAt` to be in-order.
+        // In case of a partial submission here, it'll become unordered.
+        batch.submitted = .{ .head = next, .tail = next };
+
+        batch.pending.tail = @enumFromInt(index);
+        batch_userdata.pending_count += 1;
+    }
+
+    if (batch_userdata.pending_count == 0)
+        return;
+
+    wait_point.awaitee = .{
+        .operation = .{
+            .outstanding = batch_userdata.pending_count,
+            .completed_list = .{},
+            .status = .waiting_for_one_or_more,
+        },
+    };
+
+    rio.yield(.wait_for_io);
+
+    if (wait_point.awaitee.operation.completed_list.first == null) {
+        // Must be due to cancelation.
+        try rio.current_coro.?.cancelation.acknowledge();
+        unreachable; // `acknowledge` must return `error.Canceled`
+    }
+
+    while (wait_point.awaitee.operation.completed_list.popFirst()) |node| {
+        batch_userdata.pending_count -= 1;
+
+        const completion: *Operation.Storage.Completion = @alignCast(@fieldParentPtr("node", node));
+        batchPutCompletion(batch, batch_userdata, completion);
+    }
+}
+
+fn batchCancel(userdata: ?*anyopaque, batch: *Io.Batch) void {
+    const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
+    const batch_userdata: *BatchUserdata = @ptrCast(@alignCast(batch.userdata orelse return));
+
+    if (batch_userdata.pending_count != 0) {
+        const maybe_coro = rio.current_coro;
+        const wait_point = rio.waitPoint();
+
+        const batched_list = batch_userdata.operations()[0..batch.storage.len];
+
+        const old_cancelation_protection: Io.CancelProtection = if (maybe_coro) |coro|
+            coro.cancelation.swapProtection(.blocked)
+        else
+            undefined;
+
+        defer if (maybe_coro) |coro| {
+            _ = coro.cancelation.swapProtection(old_cancelation_protection);
+        };
+
+        var next = batch.pending.head;
+        var remaining = batch_userdata.pending_count;
+
+        while (remaining != 0) {
+            var cancelations: [16]Operation.Storage.WithAwaiter = undefined;
+            const oneshot_size = @min(cancelations.len, batch_userdata.pending_count);
+            remaining -= oneshot_size;
+
+            for (cancelations[0..oneshot_size]) |*cancelation| {
+                const index = next.toIndex();
+                next = batch.storage[index].pending.node.next;
+
+                cancelation.* = .{
+                    .wait_point = wait_point,
+                    .storage = .init(.{ .cancel = .{ .operation = &batched_list[index].storage } }),
+                };
+
+                rio.impl.submissions.append(&cancelation.storage.submission.node);
+            }
+
+            var unacknowledged = oneshot_size;
+
+            // Wait for cancelation acknowledgements.
+            // During this time, regular operation completions may arrive as well.
+            while (unacknowledged != 0) {
+                wait_point.awaitee = .{ .operation = .{
+                    .outstanding = batch_userdata.pending_count + unacknowledged,
+                    .status = .waiting_for_one_or_more,
+                    .completed_list = .{},
+                } };
+
+                rio.yield(.wait_for_io);
+
+                while (wait_point.awaitee.operation.completed_list.popFirst()) |node| {
+                    const completion: *Operation.Storage.Completion = @alignCast(@fieldParentPtr("node", node));
+
+                    switch (completion.result) {
+                        .cancel => unacknowledged -= 1,
+                        else => {
+                            batch_userdata.pending_count -= 1;
+                            batchPutCompletion(batch, batch_userdata, completion);
+                        },
+                    }
+                }
+            }
+        }
+
+        // All cancelation requests are acknowledged. Remaining operations may be still in progress.
+        if (batch_userdata.pending_count != 0) {
+            wait_point.awaitee = .{ .operation = .{
+                .outstanding = batch_userdata.pending_count,
+                .status = .waiting_for_all,
+                .completed_list = .{},
+            } };
+
+            rio.yield(.wait_for_io);
+
+            while (wait_point.awaitee.operation.completed_list.popFirst()) |node| {
+                const completion: *Operation.Storage.Completion = @alignCast(@fieldParentPtr("node", node));
+
+                switch (completion.result) {
+                    .cancel => unreachable, // cancel requests are already acknowledged.
+                    else => {
+                        batch_userdata.pending_count -= 1;
+                        batchPutCompletion(batch, batch_userdata, completion);
+                    },
+                }
+            }
+        }
+    }
+
+    debug.assert(batch_userdata.pending_count == 0);
+    batch_userdata.destroy(rio.gpa, batch.storage.len);
+    batch.userdata = null;
+}
+
+/// Removes from `batch.pending` and puts into `batch.completed`.
+fn batchPutCompletion(
+    batch: *Io.Batch,
+    batch_userdata: *BatchUserdata,
+    completion: *Operation.Storage.Completion,
+) void {
+    const operation = completion.parentPtr(Operation.Storage.WithAwaiter, "storage");
+    const index = batch_userdata.indexOf(operation);
+
+    const pending = &batch.storage[index].pending;
+
+    switch (pending.node.prev) {
+        .none => batch.pending.head = pending.node.next,
+        else => |prev| batch.storage[prev.toIndex()].pending.node.next = pending.node.next,
+    }
+
+    switch (pending.node.next) {
+        .none => batch.pending.tail = pending.node.prev,
+        else => |next| batch.storage[next.toIndex()].pending.node.prev = pending.node.prev,
+    }
+
+    switch (completion.result) {
+        .cancel => unreachable,
+        .net_receive => |result| {
+            const operation_userdata: *BatchUserdata.NetReceive = .fromErased(&pending.userdata);
+
+            batch.storage[index] = .{ .completion = .{
+                .node = .{ .next = batch.completed.head },
+                .result = .{ .net_receive = if (result) |n_received| result: {
+                    const message = &operation_userdata.message_buffer[0];
+                    message.data = operation_userdata.data_buffer[0..n_received];
+
+                    break :result .{ null, 1 };
+                } else |err| switch (err) {
+                    error.Canceled => return,
+                    else => |e| .{ e, 0 },
+                } },
+            } };
+
+            batch.completed.head = @enumFromInt(index);
+        },
+        else => unreachable,
     }
 }
 
@@ -531,8 +875,7 @@ fn concurrent(
     } };
 
     coro.context_ptr = owned_context_ptr;
-    coro.state = .running;
-    coro.cancel_protection = .unblocked;
+    coro.cancelation = .init;
     coro.rio = rio;
     coro.awaiter = null;
 
@@ -571,32 +914,20 @@ fn cancel(
 
 /// Puts a cancelation request on `coro` and waits until it finishes.
 fn cancelAndWait(rio: *RemiellIo, coro: *Coroutine) void {
-    switch (coro.state) {
-        .running => {},
-        .finished => return, // There's nothing to do
-        .cancel_requested, .cancel_acknowledged => unreachable, // always a race condition
-    }
+    if (coro.hasExited()) return; // There's nothing to do
 
-    coro.state = .cancel_requested;
+    coro.awaiter = rio.waitPoint();
+    coro.cancelation.request();
 
-    coro.awaiter = if (rio.current_coro) |current|
-        .{ .coroutine = current }
-    else
-        .{ .naked = &rio.naked_wait.context };
-
-    switch (coro.wait_point.awaitee) {
-        .operation => |*o| {
-            // If it's blocked waiting on an `Operation`,
-            // submit a cancelation request for it.
-            o.outstanding += 1;
-            o.cancelation.storage = .init(.{ .cancel = .{
-                .operation = &o.primary.storage,
-            } });
-
-            rio.impl.submissions.append(&o.cancelation.storage.submission.node);
+    if (coro.cancelation.protection == .unblocked) switch (coro.wait_point.awaitee) {
+        .operation => |o| switch (o.outstanding) {
+            // Nothing to do. The task is already scheduled since its operation is complete.
+            0 => {},
+            else => rio.schedule(&coro.wait_point),
         },
+
         // TODO: should it propagate cancelation request?
-        .idle, .none, .coroutine => {},
+        .idle, .shutdown, .none, .coroutine => {},
 
         .futex => |*futex| switch (futex.cancelation) {
             .blocked => {},
@@ -611,9 +942,9 @@ fn cancelAndWait(rio: *RemiellIo, coro: *Coroutine) void {
             },
             .canceled => unreachable, // always a race condition
         },
-    }
+    };
 
-    rio.block(.{ .await = coro });
+    rio.yield(.{ .join = .{ .awaitee = coro } });
 }
 
 fn groupConcurrent(
@@ -654,8 +985,7 @@ fn groupConcurrent(
     } };
 
     coro.context_ptr = owned_context_ptr;
-    coro.state = .running;
-    coro.cancel_protection = .unblocked;
+    coro.cancelation = .init;
     coro.rio = rio;
     coro.awaiter = null;
 
@@ -696,18 +1026,87 @@ fn recancel(userdata: ?*anyopaque) void {
         // second of all, recancel() may only be called to re-arm cancelation request
         unreachable;
 
-    switch (coro.state) {
-        .running, .finished, .cancel_requested => unreachable,
-        .cancel_acknowledged => coro.state = .cancel_requested,
+    switch (coro.cancelation.status) {
+        .none, .requested => unreachable,
+        .acknowledged => coro.cancelation.status = .requested,
     }
 }
 
+fn fileClose(userdata: ?*anyopaque, files: []const Io.File) void {
+    // Only linux can batch `close(2)`.
+    if (native_os != .linux) {
+        for (files) |file| switch (native_os) {
+            .windows => _ = Impl.NtClose(file.handle),
+            else => _ = posix.system.close(file.handle),
+        };
+
+        return;
+    }
+
+    const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
+    rio.closeMany(Io.File, files);
+}
+
 fn netClose(userdata: ?*anyopaque, handles: []const net.Socket.Handle) void {
-    _ = userdata;
-    for (handles) |socket| switch (native_os) {
-        .windows => _ = Impl.closesocket(socket),
-        else => _ = std.posix.system.close(socket),
+    // Only linux can batch `close(2)`.
+    if (native_os != .linux) {
+        for (handles) |handle| switch (native_os) {
+            .windows => _ = Impl.closesocket(handle),
+            else => _ = posix.system.close(handle),
+        };
+
+        return;
+    }
+
+    const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
+    rio.closeMany(net.Socket.Handle, handles);
+}
+
+fn closeMany(rio: *RemiellIo, comptime T: type, list: []const T) void {
+    const maybe_coro = rio.current_coro;
+    const wp = rio.waitPoint();
+
+    // resource deallocation must succeed.
+    const old_cancelation_protection: Io.CancelProtection = if (maybe_coro) |coro|
+        coro.cancelation.swapProtection(.blocked)
+    else
+        undefined;
+
+    defer if (maybe_coro) |coro| {
+        _ = coro.cancelation.swapProtection(old_cancelation_protection);
     };
+
+    // Can batch up to this amount of `close` operations within a single syscall.
+    var operations: [16]Operation.Storage.WithAwaiter = undefined;
+    var cursor = list;
+
+    while (cursor.len != 0) {
+        const oneshot_size = @min(operations.len, cursor.len);
+        defer cursor = cursor[oneshot_size..];
+
+        for (operations[0..oneshot_size], cursor[0..oneshot_size]) |*op, entry| {
+            op.* = .{ .wait_point = wp, .storage = .init(
+                .{ .close = .{
+                    .handle = switch (T) {
+                        net.Socket.Handle => entry,
+                        Io.File => entry.handle,
+                        else => comptime unreachable,
+                    },
+                } },
+            ) };
+
+            rio.impl.submissions.append(&op.storage.submission.node);
+        }
+
+        wp.awaitee = .{ .operation = .{
+            .outstanding = @intCast(oneshot_size),
+            .completed_list = .{},
+            .status = .waiting_for_all,
+        } };
+
+        rio.yield(.wait_for_io);
+        debug.assert(wp.awaitee.operation.outstanding == 0);
+    }
 }
 
 fn netBindIp(
@@ -721,8 +1120,6 @@ fn netBindIp(
 
 fn netSend(userdata: ?*anyopaque, socket_handle: net.Socket.Handle, messages: []net.OutgoingMessage, flags: net.SendFlags) struct { ?net.Socket.SendError, usize } {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    rio.checkCancel() catch |err|
-        return .{ err, 0 };
 
     for (messages, 0..) |*message, sent|
         rio.netSendOne(socket_handle, message, flags) catch |err|
@@ -739,18 +1136,13 @@ fn netSendOne(
 ) net.Socket.SendError!void {
     _ = flags;
 
-    const point = rio.waitPoint();
-    point.submit(.{ .net_send = .{
+    if (rio.syscall(.net_send, .{
         .socket_handle = socket_handle,
         .to = message.address,
         .buffer = message.data_ptr[0..message.data_len],
-    } }, rio);
-
-    rio.block(.submission);
-
-    if (rio.unblock(point.awaitee.operation.primary.storage.completion.result.net_send)) |n_sent|
-        message.data_len = n_sent
-    else |err| {
+    })) |n_sent| {
+        message.data_len = n_sent;
+    } else |err| {
         message.data_len = 0;
         return err;
     }
@@ -770,18 +1162,12 @@ fn netAccept(
     listener: net.Socket.Handle,
     options: net.Server.AcceptOptions,
 ) net.Server.AcceptError!net.Socket {
+    const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
     _ = options;
 
-    const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
-
-    const point = rio.waitPoint();
-    point.submit(.{ .net_accept = .{
+    return rio.syscall(.net_accept, .{
         .listener_handle = listener,
-    } }, rio);
-
-    rio.block(.submission);
-    return rio.unblock(point.awaitee.operation.primary.storage.completion.result.net_accept);
+    });
 }
 
 fn netRead(
@@ -790,16 +1176,11 @@ fn netRead(
     data: [][]u8,
 ) net.Stream.Reader.Error!usize {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
-    const point = rio.waitPoint();
-    point.submit(.{ .net_read = .{
+    return rio.syscall(.net_read, .{
         .stream_handle = socket,
         .buffer = data[0],
-    } }, rio);
-
-    rio.block(.submission);
-    return rio.unblock(point.awaitee.operation.primary.storage.completion.result.net_read);
+    });
 }
 
 fn netWrite(
@@ -810,7 +1191,6 @@ fn netWrite(
     splat: usize,
 ) net.Stream.Writer.Error!usize {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
     var iovecs: [8]Impl.Vector(.@"const") = undefined;
     var iovecs_count: usize = 0;
@@ -845,14 +1225,10 @@ fn netWrite(
         },
     };
 
-    const point = rio.waitPoint();
-    point.submit(.{ .net_write = .{
+    return rio.syscall(.net_write, .{
         .stream_handle = socket,
         .data = iovecs[0..iovecs_count],
-    } }, rio);
-
-    rio.block(.submission);
-    return rio.unblock(point.awaitee.operation.primary.storage.completion.result.net_write);
+    });
 }
 
 fn random(userdata: ?*anyopaque, buffer: []u8) void {
@@ -876,12 +1252,13 @@ fn random(userdata: ?*anyopaque, buffer: []u8) void {
 
 fn randomSecure(userdata: ?*anyopaque, buffer: []u8) Io.RandomSecureError!void {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
+    _ = rio;
+
     try randomSecureFill(buffer);
 }
 
 fn randomSecureFill(buffer: []u8) !void {
-    // Right now it's synchronous.
+    // Right now it's synchronous and not cancelable.
     switch (native_os) {
         .linux => fillFromDevUrandom(buffer) catch
             return error.EntropyUnavailable,
@@ -950,46 +1327,20 @@ fn fillFromDeviceCng(buffer: []u8) !void {
     };
 }
 
-fn checkCancelErased(userdata: ?*anyopaque) Io.Cancelable!void {
+fn checkCancel(userdata: ?*anyopaque) Io.Cancelable!void {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    return rio.checkCancel();
-}
 
-fn checkCancel(rio: *RemiellIo) Io.Cancelable!void {
-    const coro = rio.current_coro orelse return;
-
-    switch (coro.state) {
-        .cancel_requested => switch (coro.cancel_protection) {
-            .blocked => {},
-            .unblocked => {
-                coro.state = .cancel_acknowledged;
-                return error.Canceled;
-            },
-        },
-        .cancel_acknowledged, .running => {},
-        .finished => unreachable,
-    }
-}
-
-fn unblock(rio: *RemiellIo, result: anytype) @TypeOf(result) {
-    _ = result catch |err| switch (err) {
-        error.Canceled => {
-            debug.assert(rio.current_coro.?.state == .cancel_requested);
-            rio.current_coro.?.state = .cancel_acknowledged;
-        },
-        else => {},
-    };
-
-    return result;
+    if (rio.current_coro) |coro|
+        try coro.cancelation.acknowledge();
 }
 
 fn swapCancelProtection(userdata: ?*anyopaque, protection: Io.CancelProtection) Io.CancelProtection {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    const coro = rio.current_coro orelse return .unblocked;
 
-    const old_cancel_protection = coro.cancel_protection;
-    coro.cancel_protection = protection;
-    return old_cancel_protection;
+    return if (rio.current_coro) |coro|
+        coro.cancelation.swapProtection(protection)
+    else
+        .unblocked;
 }
 
 fn now(userdata: ?*anyopaque, clock: Io.Clock) Io.Timestamp {
@@ -1008,21 +1359,15 @@ fn dirOpenFile(
     options: Io.Dir.OpenFileOptions,
 ) Io.File.OpenError!Io.File {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
     var path_buffer: Impl.PathBuffer = undefined;
     try path_buffer.initPinned(dir.handle, sub_path);
 
-    const point = rio.waitPoint();
-    point.submit(.{ .dir_open_file = .{
+    const handle = try rio.syscall(.dir_open_file, .{
         .dir_handle = dir.handle,
         .sub_path = &path_buffer,
         .options = options,
-    } }, rio);
-
-    rio.block(.submission);
-
-    const handle = try rio.unblock(point.awaitee.operation.primary.storage.completion.result.dir_open_file);
+    });
 
     return .{
         .handle = handle,
@@ -1037,31 +1382,21 @@ fn fileReadPositional(
     offset: u64,
 ) Io.File.ReadPositionalError!usize {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
     const iovecs_capacity = if (Operation.FileRead.vectored) 8 else 0;
     var iovecs_buffer: [iovecs_capacity]Impl.Vector(.@"var") = undefined;
 
-    rio.submitFileRead(&iovecs_buffer, file.handle, .{ .positional = offset }, data);
-    rio.block(.submission);
-
-    return rio.unblock(
-        rio.waitPoint().awaitee.operation.primary.storage.completion.result.file_read,
+    return rio.fileRead(
+        &iovecs_buffer,
+        file.handle,
+        .{ .positional = offset },
+        data,
     ) catch |err| switch (err) {
         error.ConnectionResetByPeer,
         error.SocketUnconnected,
         error.EndOfStream,
         => unreachable, // positional
         else => |e| e,
-    };
-}
-
-fn fileClose(userdata: ?*anyopaque, files: []const Io.File) void {
-    _ = userdata;
-
-    for (files) |file| switch (native_os) {
-        .windows => _ = Impl.NtClose(file.handle),
-        else => _ = std.posix.system.close(file.handle),
     };
 }
 
@@ -1072,20 +1407,15 @@ fn dirCreateDir(
     permissions: Io.Dir.Permissions,
 ) Io.Dir.CreateDirError!void {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
     var path_buffer: Impl.PathBuffer = undefined;
     try path_buffer.initPinned(dir.handle, sub_path);
 
-    const point = rio.waitPoint();
-    point.submit(.{ .create_dir = .{
+    return rio.syscall(.create_dir, .{
         .at = dir.handle,
         .sub_path = &path_buffer,
         .permissions = permissions,
-    } }, rio);
-
-    rio.block(.submission);
-    return rio.unblock(point.awaitee.operation.primary.storage.completion.result.create_dir);
+    });
 }
 
 fn dirCreateDirPath(
@@ -1120,21 +1450,15 @@ fn dirCreateFile(
     options: Io.Dir.CreateFileOptions,
 ) Io.File.OpenError!Io.File {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
     var path_buffer: Impl.PathBuffer = undefined;
     try path_buffer.initPinned(dir.handle, sub_path);
 
-    const point = rio.waitPoint();
-    point.submit(.{ .dir_create_file = .{
+    const handle = try rio.syscall(.dir_create_file, .{
         .at = dir.handle,
         .sub_path = &path_buffer,
         .options = options,
-    } }, rio);
-
-    rio.block(.submission);
-
-    const handle = try rio.unblock(point.awaitee.operation.primary.storage.completion.result.dir_create_file);
+    });
 
     return .{
         .handle = handle,
@@ -1151,18 +1475,14 @@ fn fileWritePositional(
     offset: u64,
 ) Io.File.WritePositionalError!usize {
     const rio: *RemiellIo = @ptrCast(@alignCast(userdata));
-    try rio.checkCancel();
 
     const iovecs_capacity = if (Operation.FileWrite.vectored) 8 else 0;
     var iovecs_buffer: [iovecs_capacity]Impl.Vector(.@"const") = undefined;
-    if (!rio.submitFileWrite(&iovecs_buffer, file.handle, .{ .positional = offset }, header, data, splat))
-        return 0;
 
-    rio.block(.submission);
-    return rio.unblock(rio.waitPoint().awaitee.operation.primary.storage.completion.result.file_write);
+    return try rio.fileWrite(&iovecs_buffer, file.handle, .{ .positional = offset }, header, data, splat);
 }
 
-fn submitFileWrite(
+fn fileWrite(
     rio: *RemiellIo,
     iovecs_buffer: []Impl.Vector(.@"const"),
     file: Io.File.Handle,
@@ -1170,10 +1490,8 @@ fn submitFileWrite(
     header: []const u8,
     data: []const []const u8,
     splat: usize,
-) bool {
+) Operation.FileWrite.Result {
     var iovecs_count: usize = 0;
-
-    const point = rio.waitPoint();
 
     if (Operation.FileWrite.vectored) {
         addVector(.@"const", iovecs_buffer, &iovecs_count, header);
@@ -1186,13 +1504,13 @@ fn submitFileWrite(
             addVector(.@"const", iovecs_buffer, &iovecs_count, pattern);
 
         if (iovecs_count == 0)
-            return false;
+            return 0;
 
-        point.submit(.{ .file_write = .{
+        return rio.syscall(.file_write, .{
             .file_handle = file,
             .mode = mode,
             .data = iovecs_buffer[0..iovecs_count],
-        } }, rio);
+        });
     } else {
         const buffer: []const u8 = buffer: {
             if (header.len != 0) break :buffer header;
@@ -1202,28 +1520,26 @@ fn submitFileWrite(
 
             const pattern = data[data.len - 1];
             if (pattern.len == 0 or splat == 0)
-                return false;
+                return 0;
 
             break :buffer data[data.len - 1];
         };
 
-        point.submit(.{ .file_write = .{
+        return rio.syscall(.file_write, .{
             .file_handle = file,
             .mode = mode,
             .data = buffer,
-        } }, rio);
+        });
     }
-
-    return true;
 }
 
-fn submitFileRead(
+fn fileRead(
     rio: *RemiellIo,
     iovecs_buffer: []Impl.Vector(.@"var"),
     file: Io.File.Handle,
     mode: FileOperationMode,
     data: []const []u8,
-) void {
+) Operation.FileRead.Result {
     var iovecs_count: usize = 0;
 
     if (Operation.FileRead.vectored) {
@@ -1231,15 +1547,14 @@ fn submitFileRead(
             addVector(.@"var", iovecs_buffer, &iovecs_count, buf);
     }
 
-    const point = rio.waitPoint();
-    point.submit(.{ .file_read = .{
+    return rio.syscall(.file_read, .{
         .file_handle = file,
         .mode = mode,
         .data = if (Operation.FileRead.vectored)
             iovecs_buffer[0..iovecs_count]
         else
             data[0],
-    } }, rio);
+    });
 }
 
 fn waitPoint(rio: *RemiellIo) *WaitPoint {
@@ -1247,35 +1562,119 @@ fn waitPoint(rio: *RemiellIo) *WaitPoint {
     return &current.wait_point;
 }
 
-const WaitReason = union(enum) {
-    idle,
-    submission,
-    await: *Coroutine,
-    shutdown,
+const YieldReason = union(enum) {
+    const Join = struct {
+        awaitee: *Coroutine,
+    };
+
+    /// The coroutine has finished its execution.
+    exit: void,
+
+    /// The coroutine wants to wait for an I/O operation to complete.
+    wait_for_io: void,
+
+    /// The coroutine wants to block until awaitee exits.
+    join: Join,
+
+    /// The coroutine wants to block until shutdown sequence is initiated.
+    wait_for_shutdown: void,
+
+    /// The coroutine wants to wait on a futex.
     futex: WaitPoint.Awaitee.Futex,
-    yield,
+
+    /// The coroutine is cooperatively handing CPU time to other coroutines.
+    handoff: void,
 };
 
-fn block(rio: *RemiellIo, reason: WaitReason) void {
+/// Performs one synchronous (in relation to coroutine) I/O operation.
+fn syscall(
+    rio: *RemiellIo,
+    comptime op: Operation.Tag,
+    param: @FieldType(Operation, @tagName(op)),
+) @TypeOf(param).Result {
+    if (rio.current_coro) |current_coro|
+        try current_coro.cancelation.acknowledge();
+
+    const wp = rio.waitPoint();
+
+    var operation: Operation.Storage.WithAwaiter = .{
+        .wait_point = wp,
+        .storage = .init(@unionInit(Operation, @tagName(op), param)),
+    };
+
+    var cancelation: Operation.Storage.WithAwaiter = .{
+        .wait_point = wp,
+        .storage = .init(.{ .cancel = .{ .operation = &operation.storage } }),
+    };
+
+    wp.awaitee = .{ .operation = .{
+        .outstanding = 1,
+        .completed_list = .{},
+        .status = .waiting_for_all,
+    } };
+
+    const wait = &wp.awaitee.operation;
+
+    rio.impl.submissions.append(&operation.storage.submission.node);
+
+    rio.yield(.wait_for_io);
+
+    if (wait.outstanding == 0) {
+        // Operation completed normally, we're done here.
+        return @field(
+            operation.storage.completion.result,
+            @tagName(op),
+        ) catch |err| switch (err) {
+            error.Canceled => unreachable, // nobody asked for it
+            else => |e| e,
+        };
+    }
+
+    // Otherwise this is an early wakeup due to the cancelation.
+    debug.assert(wait.outstanding == 1); // always a race condition
+
+    wait.* = .{
+        .outstanding = 2,
+        .completed_list = .{},
+        .status = .waiting_for_all,
+    };
+
+    rio.impl.submissions.append(&cancelation.storage.submission.node);
+    rio.yield(.wait_for_io);
+
+    // Now we should be switched to only because outstanding ops are done.
+    debug.assert(wait.outstanding == 0); // always a race condition
+
+    return @field(
+        operation.storage.completion.result,
+        @tagName(op),
+    ) catch |err| switch (err) {
+        error.Canceled => {
+            // The operation was successfully canceled, acknowledge the task-level cancelation.
+            try rio.current_coro.?.cancelation.acknowledge();
+            unreachable; // `acknowledge` must return `error.Canceled`
+        },
+        else => |e| e,
+    };
+}
+
+/// Yield the execution.
+/// This may result in the following:
+/// * Switching to another coroutine that is in `wakeup_queue`.
+/// * Blocking in `impl.await` until one or more I/O operations complete.
+fn yield(rio: *RemiellIo, reason: YieldReason) void {
     const enter_wait_point = rio.waitPoint();
 
     switch (reason) {
-        // Coroutine has finished execution
-        .idle => enter_wait_point.awaitee = .idle,
-
-        .shutdown => enter_wait_point.awaitee = .idle,
-
-        // A new operation submitted by coroutine.
-        .submission => {}, // unchanged
-
-        .await => |coro| enter_wait_point.awaitee = .{ .coroutine = coro },
-
+        .exit => enter_wait_point.awaitee = .idle,
+        .wait_for_shutdown => enter_wait_point.awaitee = .shutdown,
+        .wait_for_io => debug.assert(.operation == std.meta.activeTag(enter_wait_point.awaitee)),
+        .join => |join| enter_wait_point.awaitee = .{ .coroutine = join.awaitee },
         .futex => |futex| {
             enter_wait_point.awaitee = .{ .futex = futex };
             rio.wait_list.append(&enter_wait_point.awaitee.futex.wait_list_node);
         },
-
-        .yield => enter_wait_point.awaitee = .none,
+        .handoff => {},
     }
 
     wait_loop: while (true) {
@@ -1300,23 +1699,23 @@ fn block(rio: *RemiellIo, reason: WaitReason) void {
 
         while (rio.impl.completions.popFirst()) |node| {
             const completion: *Operation.Storage.Completion = @alignCast(@fieldParentPtr("node", node));
-            const storage = completion.parentPtr(Operation.Storage.Tagged, "storage");
+            const storage = completion.parentPtr(Operation.Storage.WithAwaiter, "storage");
 
-            const awaitee: *@FieldType(WaitPoint.Awaitee, "operation") = switch (storage.tag) {
-                0 => @alignCast(@fieldParentPtr("primary", storage)),
-                1 => @alignCast(@fieldParentPtr("cancelation", storage)),
-                else => unreachable,
-            };
+            const wait = &storage.wait_point.awaitee.operation;
+            wait.outstanding -= 1;
+            wait.completed_list.append(&completion.node);
 
-            awaitee.outstanding -= 1;
-            if (awaitee.outstanding != 0) continue; // Some operations are still pending.
-
-            const wait_point: *WaitPoint = @alignCast(@fieldParentPtr(
-                "awaitee",
-                @as(*WaitPoint.Awaitee, @fieldParentPtr("operation", awaitee)),
-            ));
-
-            rio.schedule(wait_point);
+            switch (wait.status) {
+                .scheduled => {}, // already
+                .waiting_for_one_or_more => {
+                    wait.status = .scheduled;
+                    rio.schedule(storage.wait_point);
+                },
+                .waiting_for_all => if (wait.outstanding == 0) {
+                    wait.status = .scheduled;
+                    rio.schedule(storage.wait_point);
+                },
+            }
         }
     }
 }
@@ -1378,6 +1777,7 @@ pub const Operation = union(enum) {
     create_dir: CreateDir,
     dir_create_file: DirCreateFile,
     file_write: FileWrite,
+    close: Close,
 
     pub const NetAccept = struct {
         listener_handle: Io.net.Socket.Handle,
@@ -1504,6 +1904,14 @@ pub const Operation = union(enum) {
         pub const Result = Error!usize;
     };
 
+    pub const Close = switch (native_os) {
+        .linux => struct {
+            handle: Io.File.Handle,
+            pub const Result = void;
+        },
+        else => noreturn,
+    };
+
     pub const Tag = @typeInfo(Operation).@"union".tag_type.?;
 
     pub const Result = Result: {
@@ -1519,8 +1927,8 @@ pub const Operation = union(enum) {
 
     /// This structure must be pinned.
     pub const Storage = union {
-        pub const Tagged = struct {
-            tag: u32,
+        pub const WithAwaiter = struct {
+            wait_point: *WaitPoint,
             storage: Storage,
         };
 
@@ -1617,7 +2025,7 @@ pub fn waitForShutdown(rio: *RemiellIo) void {
         );
     }
 
-    rio.block(.shutdown);
+    rio.yield(.wait_for_shutdown);
 }
 
 test {

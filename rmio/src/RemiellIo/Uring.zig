@@ -293,6 +293,16 @@ fn drainSubmitted(u: *Uring) void {
 
                 u.outstanding += 1;
             },
+            .close => |close| {
+                _ = setUserdata(storage, .close);
+
+                _ = u.ring.close(
+                    @intFromPtr(storage),
+                    close.handle,
+                ) catch unreachable;
+
+                u.outstanding += 1;
+            },
         }
     }
 }
@@ -534,6 +544,12 @@ fn fillCompleted(u: *Uring) void {
 
                 u.outstanding -= 1;
             },
+            .close => |*close| {
+                _ = close;
+
+                u.completeOne(storage, .{ .close = {} });
+                u.outstanding -= 1;
+            },
         }
     }
 }
@@ -572,6 +588,7 @@ const RingUserdata = union(enum) {
     create_dir: void,
     dir_create_file: void,
     file_write: void,
+    close: void,
 };
 
 fn setUserdata(storage: *Operation.Storage, userdata: RingUserdata) *RingUserdata {
@@ -640,7 +657,7 @@ pub fn netBind(
         }
     }
 
-    const sockaddr: linux.sockaddr.in = .{
+    var sockaddr: linux.sockaddr.in = .{
         .addr = @bitCast(address.ip4.bytes),
         .port = std.mem.nativeToBig(u16, address.ip4.port),
     };
@@ -653,7 +670,26 @@ pub fn netBind(
         else => |e| unexpected(e),
     }
 
-    return .{ .handle = socket, .address = address.* };
+    return .{
+        .handle = socket,
+        .address = switch (address.ip4.port) {
+            0 => getsockname: {
+                var addrlen: linux.socklen_t = @sizeOf(linux.sockaddr.in);
+                break :getsockname switch (linux.errno(linux.getsockname(
+                    socket,
+                    @ptrCast(&sockaddr),
+                    &addrlen,
+                ))) {
+                    .SUCCESS => .{ .ip4 = .{
+                        .bytes = @bitCast(sockaddr.addr),
+                        .port = std.mem.bigToNative(u16, sockaddr.port),
+                    } },
+                    else => |e| unexpected(e),
+                };
+            },
+            else => address.*,
+        },
+    };
 }
 
 pub fn netListen(
