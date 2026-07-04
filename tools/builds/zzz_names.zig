@@ -84,6 +84,8 @@ pub const Avatar = enum(u32) {
     Pyrois = 1551, // Avatar_Male_Size03_Pyrois
     Velina = 1561, // Avatar_Female_Size03_Velina
     Norma = 1571, // Avatar_Female_Size01_Norma
+    Remielle = 1581, // Avatar_Female_Size02_Remielle
+    Sigrid = 1591, // Avatar_Female_Size03_Sigrid
     // </gen:avatar>
 };
 
@@ -121,7 +123,7 @@ pub const Set = enum(u32) {
     NotesFromTheChained = 33800, // 2pc +10% Ice DMG
     WutheringSalon = 33900, // 2pc +10% Wind DMG
     TheSkyAblaze = 34000, // 2pc +10% Ether DMG
-    Set34100 = 34100, // 2pc +10% ATK (name not in dataset)
+    FeatheredFate = 34100, // 2pc +10% ATK
     Set34200 = 34200, // 2pc +16% DEF (name not in dataset)
 };
 
@@ -227,6 +229,8 @@ pub const Weapon = enum(u32) {
     SolExuvia = 14155, // Weapon_S_Common_04
     JoyauDore = 14156, // Weapon_S_1561 (Velina)
     ChiefSidekick = 14157, // Weapon_S_1571 (Norma)
+    PoemOfTheEmptyFeatherReturn = 14158, // Weapon_S_1581 (Remielle)
+    SigridSignature = 14159, // Weapon_S_1591 (Sigrid; name not in dataset)
     // </gen:weapon>
 };
 

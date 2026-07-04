@@ -195,5 +195,39 @@
                 .{ .slot = 6, .set = .MoonlightLullaby, .main = .HpPct, .subs = .{ .{ .HpFlat, 5 }, .{ .CritRate, 0 }, .{ .CritDmg, 0 }, .{ .DefPct, 0 } } }, // DefPct [user pick]
             },
         },
+
+        // ── Remielle ── W-Engine Poem of the Empty Feather Return | 4-PC Feathered Fate (slots 3-6) + 2-PC Astral Voice (slots 1-2) ──
+        // https://www.icy-veins.com/zenless-zone-zero/remielle-dan-guide-best-builds (prydwen page not yet live; speculative pre-release build)
+        // icy-veins: D4 Anomaly Proficiency | D5 ATK % | D6 ATK %
+        // subs: Anomaly Proficiency = ATK % > PEN > ATK
+        .{
+            .avatar = .Remielle,
+            .weapon = .PoemOfTheEmptyFeatherReturn,
+            .slots = .{
+                .{ .slot = 1, .set = .AstralVoice, .subs = .{ .{ .AnomProf, 4 }, .{ .AtkPct, 1 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+                .{ .slot = 2, .set = .AstralVoice, .subs = .{ .{ .AnomProf, 4 }, .{ .AtkPct, 1 }, .{ .PenFlat, 0 }, .{ .CritRate, 0 } } }, // CritRate [user pick]
+                .{ .slot = 3, .set = .FeatheredFate, .subs = .{ .{ .AnomProf, 4 }, .{ .AtkPct, 1 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } },
+                .{ .slot = 4, .set = .FeatheredFate, .main = .AnomProf, .subs = .{ .{ .AtkPct, 4 }, .{ .PenFlat, 1 }, .{ .AtkFlat, 0 }, .{ .CritRate, 0 } } }, // CritRate [user pick]
+                .{ .slot = 5, .set = .FeatheredFate, .main = .AtkPct, .subs = .{ .{ .AnomProf, 4 }, .{ .PenFlat, 1 }, .{ .AtkFlat, 0 }, .{ .CritRate, 0 } } }, // CritRate [user pick]
+                .{ .slot = 6, .set = .FeatheredFate, .main = .AtkPct, .subs = .{ .{ .AnomProf, 4 }, .{ .PenFlat, 1 }, .{ .AtkFlat, 0 }, .{ .CritRate, 0 } } }, // CritRate [user pick]
+            },
+        },
+
+        // ── Sigrid ── W-Engine Sigrid's Signature (name TBD) | 4-PC Woodpecker Electro (slots 3-6) + 2-PC Branch & Blade Song (slots 1-2) ──
+        // https://www.icy-veins.com/zenless-zone-zero/sigrid-guide-best-builds (prydwen page not yet live; speculative pre-release build)
+        // icy-veins: D4 CRIT DMG | D5 Ice DMG | D6 ATK %
+        // subs: CRIT DMG > CRIT Rate > ATK % > PEN
+        .{
+            .avatar = .Sigrid,
+            .weapon = .SigridSignature,
+            .slots = .{
+                .{ .slot = 1, .set = .BranchBladeSong, .subs = .{ .{ .CritDmg, 5 }, .{ .AtkFlat, 0 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 2, .set = .BranchBladeSong, .subs = .{ .{ .CritDmg, 5 }, .{ .CritRate, 0 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 3, .set = .WoodpeckerElectro, .subs = .{ .{ .CritDmg, 5 }, .{ .AtkFlat, 0 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 4, .set = .WoodpeckerElectro, .main = .CritDmg, .subs = .{ .{ .CritRate, 0 }, .{ .AtkPct, 5 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } }, // AtkFlat [user pick]
+                .{ .slot = 5, .set = .WoodpeckerElectro, .main = .IceDmg, .subs = .{ .{ .CritDmg, 5 }, .{ .AtkFlat, 0 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 6, .set = .WoodpeckerElectro, .main = .AtkPct, .subs = .{ .{ .CritDmg, 5 }, .{ .CritRate, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } }, // AtkFlat [user pick]
+            },
+        },
     },
 }
