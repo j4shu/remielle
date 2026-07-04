@@ -229,5 +229,22 @@
                 .{ .slot = 6, .set = .WoodpeckerElectro, .main = .AtkPct, .subs = .{ .{ .CritDmg, 5 }, .{ .CritRate, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } }, // AtkFlat [user pick]
             },
         },
+
+        // ── Norma ── W-Engine Chief Sidekick | 4-PC King of the Summit (slots 3-6) + 2-PC Woodpecker Electro (slots 1-2) ──
+        // https://www.icy-veins.com/zenless-zone-zero/norma-guide-best-builds (prydwen page not yet live)
+        // icy-veins: D4 CRIT Rate | D5 Fire DMG | D6 Impact
+        // subs: CRIT Rate > CRIT DMG > ATK % > PEN
+        .{
+            .avatar = .Norma,
+            .weapon = .ChiefSidekick,
+            .slots = .{
+                .{ .slot = 1, .set = .WoodpeckerElectro, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 2, .set = .WoodpeckerElectro, .subs = .{ .{ .CritRate, 3 }, .{ .CritDmg, 2 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 3, .set = .KingOfTheSummit, .subs = .{ .{ .CritRate, 5 }, .{ .CritDmg, 0 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 4, .set = .KingOfTheSummit, .main = .CritDmg, .subs = .{ .{ .CritRate, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 }, .{ .AtkFlat, 0 } } }, // AtkFlat [user pick]
+                .{ .slot = 5, .set = .KingOfTheSummit, .main = .FireDmg, .subs = .{ .{ .CritRate, 0 }, .{ .CritDmg, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+                .{ .slot = 6, .set = .KingOfTheSummit, .main = .Impact, .subs = .{ .{ .CritRate, 0 }, .{ .CritDmg, 5 }, .{ .AtkPct, 0 }, .{ .PenFlat, 0 } } },
+            },
+        },
     },
 }
